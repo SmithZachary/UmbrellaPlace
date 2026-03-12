@@ -8,7 +8,7 @@
     <link rel="canonical" href="https://umbrellaplace.com/privacy.html" />
     <meta name="theme-color" content="#1a3c6e" />
     <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
-    <link rel="stylesheet" href="./styles.css" />
+    <link rel="stylesheet" href="./css/styles.css" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
@@ -27,10 +27,21 @@
         <span>Umbrella Place</span>
       </a>
       <div class="nav-links">
-        <a href="index.html#services">Services</a>
+        <div class="nav-dropdown">
+          <a href="index.html#services" class="nav-dropdown-toggle">Services <span class="dropdown-arrow">&#9662;</span></a>
+          <div class="nav-dropdown-menu">
+            <a href="bridge-loans.html">Bridge Loans</a>
+            <a href="fix-and-flip.html">Fix &amp; Flip</a>
+            <a href="new-construction.html">New Construction</a>
+            <a href="dscr-loans.html">DSCR Rental Loans</a>
+          </div>
+        </div>
         <a href="index.html#why-us">Why Us</a>
-        <a href="index.html#how-it-works">Process</a>
         <a href="index.html#about">About</a>
+        <a href="calculator.html">Calculator</a>
+        <a href="blog.html">Blog</a>
+        <a href="case-studies.html">Case Studies</a>
+        <a href="glossary.html">Glossary</a>
         <a href="index.html#contact" class="nav-cta">Get Started</a>
       </div>
       <button class="mobile-menu" aria-label="Open navigation menu" aria-expanded="false">&#9776;</button>
@@ -140,8 +151,11 @@
           <h4>Quick Links</h4>
           <a href="index.html#services">Services</a>
           <a href="index.html#why-us">Why Us</a>
-          <a href="index.html#how-it-works">Process</a>
           <a href="index.html#about">About</a>
+          <a href="calculator.html">Calculator</a>
+          <a href="blog.html">Blog</a>
+          <a href="case-studies.html">Case Studies</a>
+        <a href="glossary.html">Glossary</a>
         </div>
         <div class="footer-col">
           <h4>Contact</h4>
@@ -158,6 +172,6 @@
         <p class="disclaimer">Umbrella Place is a loan brokerage and does not make loans directly. All loans are subject to lender approval. <a href="privacy.html">Privacy Policy</a></p>
       </div>
     </footer>
-    <script src="./script.js"></script>
+    <script src="./js/script.js"></script>
   </body>
 </html>

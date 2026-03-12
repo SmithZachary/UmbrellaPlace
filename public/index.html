@@ -101,7 +101,7 @@
       ]
     }
     </script>
-    <link rel="stylesheet" href="./styles.css" />
+    <link rel="stylesheet" href="./css/styles.css" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -123,10 +123,21 @@
         <span>Umbrella Place</span>
       </a>
       <div class="nav-links">
-        <a href="#services">Services</a>
+        <div class="nav-dropdown">
+          <a href="#services" class="nav-dropdown-toggle">Services <span class="dropdown-arrow">&#9662;</span></a>
+          <div class="nav-dropdown-menu">
+            <a href="bridge-loans.html">Bridge Loans</a>
+            <a href="fix-and-flip.html">Fix &amp; Flip</a>
+            <a href="new-construction.html">New Construction</a>
+            <a href="dscr-loans.html">DSCR Rental Loans</a>
+          </div>
+        </div>
         <a href="#why-us">Why Us</a>
-        <a href="#how-it-works">Process</a>
         <a href="#about">About</a>
+        <a href="calculator.html">Calculator</a>
+        <a href="blog.html">Blog</a>
+        <a href="case-studies.html">Case Studies</a>
+        <a href="glossary.html">Glossary</a>
         <a href="#contact" class="nav-cta">Get Started</a>
       </div>
       <button class="mobile-menu" aria-label="Open navigation menu" aria-expanded="false">&#9776;</button>
@@ -183,6 +194,7 @@
             <li>Competitive rates</li>
             <li>Flexible terms</li>
           </ul>
+          <a href="bridge-loans.html" class="service-link">Learn More &rarr;</a>
         </div>
         <div class="service-card animate">
           <h3>Fix &amp; Flip</h3>
@@ -196,6 +208,7 @@
             <li>High leverage</li>
             <li>Fast approvals</li>
           </ul>
+          <a href="fix-and-flip.html" class="service-link">Learn More &rarr;</a>
         </div>
         <div class="service-card animate">
           <h3>New Construction</h3>
@@ -209,6 +222,7 @@
             <li>Multi-unit eligible</li>
             <li>Flexible timelines</li>
           </ul>
+          <a href="new-construction.html" class="service-link">Learn More &rarr;</a>
         </div>
         <div class="service-card animate">
           <h3>DSCR Rental Loans</h3>
@@ -223,6 +237,7 @@
             <li>No income docs</li>
             <li>Portfolio friendly</li>
           </ul>
+          <a href="dscr-loans.html" class="service-link">Learn More &rarr;</a>
         </div>
       </div>
     </section>
@@ -660,8 +675,11 @@
           <h4>Quick Links</h4>
           <a href="#services">Services</a>
           <a href="#why-us">Why Us</a>
-          <a href="#how-it-works">Process</a>
           <a href="#about">About</a>
+          <a href="calculator.html">Calculator</a>
+          <a href="blog.html">Blog</a>
+          <a href="case-studies.html">Case Studies</a>
+        <a href="glossary.html">Glossary</a>
         </div>
         <div class="footer-col">
           <h4>Contact</h4>
@@ -695,6 +713,6 @@
         window.db = firebase.firestore();
       });
     </script>
-    <script src="./script.js"></script>
+    <script src="./js/script.js"></script>
   </body>
 </html>
