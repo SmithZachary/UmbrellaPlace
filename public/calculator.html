@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Deal Analyzer Calculator | Umbrella Place</title>
+    <meta name="description" content="Analyze your real estate deal with our free loan calculator. Estimate LTV, monthly payments, total costs, and profit for bridge, fix &amp; flip, construction, and DSCR loans." />
+    <link rel="canonical" href="https://umbrellaplace.com/calculator.html" />
+    <meta name="theme-color" content="#1a3c6e" />
+    <meta property="og:title" content="Deal Analyzer Calculator | Umbrella Place" />
+    <meta property="og:description" content="Free deal analyzer for private real estate loans. Estimate costs, LTV, and profit instantly." />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://umbrellaplace.com/calculator.html" />
+    <meta property="og:image" content="https://umbrellaplace.com/assets/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Deal Analyzer Calculator | Umbrella Place" />
+    <meta name="twitter:description" content="Free deal analyzer for private real estate loans. Estimate costs, LTV, and profit instantly." />
+    <meta name="twitter:image" content="https://umbrellaplace.com/assets/og-image.png" />
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <link rel="stylesheet" href="./styles.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-728YG1CG5G"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-728YG1CG5G');
+    </script>
+  </head>
+  <body>
+    <nav>
+      <a href="index.html" class="nav-brand">
+        <img src="./assets/logo.svg" alt="Umbrella Place" />
+        <span>Umbrella Place</span>
+      </a>
+      <div class="nav-links">
+        <a href="index.html#services">Services</a>
+        <a href="index.html#why-us">Why Us</a>
+        <a href="index.html#how-it-works">Process</a>
+        <a href="index.html#about">About</a>
+        <a href="index.html#contact" class="nav-cta">Get Started</a>
+      </div>
+      <button class="mobile-menu" aria-label="Open navigation menu" aria-expanded="false">&#9776;</button>
+    </nav>
+    <section id="calculator-hero">
+      <div class="section-header animate">
+        <h1>Deal Analyzer Calculator</h1>
+        <p>Estimate your loan costs and key metrics for any private money deal. Adjust inputs and see results update in real time.</p>
+      </div>
+    </section>
+
+    <section id="calculator-tool">
+      <div class="calculator-wrapper">
+        <div class="calculator-inputs animate-left">
+          <h3>Deal Parameters</h3>
+          <p class="form-subtitle">Enter your deal details below.</p>
+
+          <div class="form-group">
+            <label for="calc-loan-type">Loan Type</label>
+            <select id="calc-loan-type">
+              <option value="" disabled selected>Select loan type</option>
+              <option value="bridge">Bridge Loan</option>
+              <option value="fix-flip">Fix &amp; Flip</option>
+              <option value="construction">New Construction</option>
+              <option value="dscr">DSCR Rental Loan</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="calc-purchase-price">Purchase Price ($)</label>
+            <input type="text" id="calc-purchase-price" inputmode="numeric" placeholder="e.g. 350,000" />
+          </div>
+
+          <div class="form-group calc-conditional" id="rehab-group" hidden>
+            <label for="calc-rehab-budget" id="rehab-label">Rehab / Construction Budget ($)</label>
+            <input type="text" id="calc-rehab-budget" inputmode="numeric" placeholder="e.g. 75,000" />
+          </div>
+
+          <div class="form-group calc-conditional" id="arv-group" hidden>
+            <label for="calc-arv">After Repair Value (ARV) ($)</label>
+            <input type="text" id="calc-arv" inputmode="numeric" placeholder="e.g. 500,000" />
+          </div>
+
+          <div class="form-group">
+            <label for="calc-loan-amount">Loan Amount Requested ($)</label>
+            <input type="text" id="calc-loan-amount" inputmode="numeric" placeholder="e.g. 280,000" />
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="calc-interest-rate">Interest Rate (%)</label>
+              <input type="number" id="calc-interest-rate" step="0.125" min="0" max="30" placeholder="e.g. 11.0" />
+              <span class="field-hint">Typical range: 8% &ndash; 14%</span>
+            </div>
+            <div class="form-group">
+              <label for="calc-loan-term">Loan Term (months)</label>
+              <input type="number" id="calc-loan-term" min="1" max="360" placeholder="e.g. 12" />
+              <span class="field-hint" id="term-hint">Select a loan type for suggested terms</span>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="calc-points">Origination Points (%)</label>
+            <input type="number" id="calc-points" step="0.25" min="0" max="10" placeholder="e.g. 2.0" />
+            <span class="field-hint">Typical range: 1 &ndash; 3 points</span>
+          </div>
+        </div>
+
+        <div class="calculator-results animate-right">
+          <h3>Deal Analysis</h3>
+          <p class="form-subtitle">Metrics update as you type.</p>
+
+          <div class="results-section">
+            <h4 class="results-section-title">Loan Ratios</h4>
+            <div class="result-cards">
+              <div class="result-card" id="result-ltv-card">
+                <span class="result-label">Loan-to-Value (LTV)</span>
+                <span class="result-value" id="result-ltv">--</span>
+              </div>
+              <div class="result-card" id="result-ltc-card" hidden>
+                <span class="result-label">Loan-to-Cost (LTC)</span>
+                <span class="result-value" id="result-ltc">--</span>
+              </div>
+              <div class="result-card" id="result-arltv-card" hidden>
+                <span class="result-label">After Repair LTV</span>
+                <span class="result-value" id="result-arltv">--</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="results-section">
+            <h4 class="results-section-title">Loan Costs</h4>
+            <div class="result-cards">
+              <div class="result-card">
+                <span class="result-label">Monthly Interest Payment</span>
+                <span class="result-value" id="result-monthly">--</span>
+              </div>
+              <div class="result-card">
+                <span class="result-label">Total Interest Cost</span>
+                <span class="result-value" id="result-total-interest">--</span>
+              </div>
+              <div class="result-card">
+                <span class="result-label">Origination Fee</span>
+                <span class="result-value" id="result-origination">--</span>
+              </div>
+              <div class="result-card highlight">
+                <span class="result-label">Total Loan Cost</span>
+                <span class="result-value" id="result-total-cost">--</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="results-section" id="profit-section" hidden>
+            <h4 class="results-section-title">Estimated Profit</h4>
+            <div class="result-cards">
+              <div class="result-card highlight-gold">
+                <span class="result-label">Estimated Net Profit</span>
+                <span class="result-value" id="result-profit">--</span>
+              </div>
+            </div>
+          </div>
+
+          <p class="calculator-disclaimer">
+            These figures are estimates for planning purposes only. Actual terms will be determined by the lender based on the full deal profile. Rates, points, and terms may vary.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section id="good-deal">
+      <div class="section-header animate">
+        <h2>What Makes a Good Deal?</h2>
+        <p>Whether you're a first-time investor or a seasoned pro, these are the key metrics and factors that separate a strong deal from a risky one.</p>
+      </div>
+      <div class="good-deal-grid animate">
+        <div class="good-deal-card">
+          <span class="good-deal-number">01</span>
+          <h3>Strong LTV &amp; LTC Ratios</h3>
+          <p>Lenders typically want to see an LTV at or below <strong>75%</strong> and an LTC under <strong>85%</strong>. Lower ratios mean more equity in the deal, which reduces risk for you and the lender.</p>
+        </div>
+        <div class="good-deal-card">
+          <span class="good-deal-number">02</span>
+          <h3>Realistic ARV Estimate</h3>
+          <p>Your After Repair Value should be backed by <strong>3+ comparable sales</strong> within the last 6 months and 1 mile of the property. Inflated ARVs are the fastest way to lose money on a flip.</p>
+        </div>
+        <div class="good-deal-card">
+          <span class="good-deal-number">03</span>
+          <h3>Conservative Rehab Budget</h3>
+          <p>Always add a <strong>10-15% contingency</strong> to your rehab estimate. Unexpected costs are the norm, not the exception. Get multiple contractor bids before committing.</p>
+        </div>
+        <div class="good-deal-card">
+          <span class="good-deal-number">04</span>
+          <h3>Clear Exit Strategy</h3>
+          <p>Know exactly how you'll repay the loan before you take it. Whether it's a sale, refinance, or rental income, your exit strategy should have a defined <strong>timeline and backup plan</strong>.</p>
+        </div>
+        <div class="good-deal-card">
+          <span class="good-deal-number">05</span>
+          <h3>Market &amp; Location</h3>
+          <p>Look for properties in markets with <strong>strong demand, job growth, and rising values</strong>. Avoid areas with high vacancy rates, declining populations, or excessive new inventory.</p>
+        </div>
+        <div class="good-deal-card">
+          <span class="good-deal-number">06</span>
+          <h3>Profit Margin That Accounts for Costs</h3>
+          <p>A good flip targets at least a <strong>15-20% net profit</strong> after purchase, rehab, loan costs, holding costs, and selling costs. If the margins are thin, one surprise can wipe out your return.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="calculator-cta">
+      <div class="section-header animate">
+        <h2>Ready to Move Forward?</h2>
+        <p>Submit your deal for a personalized term sheet from our lending network.</p>
+        <a href="index.html#contact" class="btn btn-primary">Submit Your Deal</a>
+      </div>
+    </section>
+    <footer>
+      <div class="footer-content">
+        <div class="footer-brand">
+          <div class="footer-logo">
+            <img src="./assets/logo.svg" alt="Umbrella Place" />
+            <span>Umbrella Place</span>
+          </div>
+          <p>Private real estate loan brokerage. Connecting borrowers with the right capital across 48 states.</p>
+        </div>
+        <div class="footer-col">
+          <h4>Quick Links</h4>
+          <a href="index.html#services">Services</a>
+          <a href="index.html#why-us">Why Us</a>
+          <a href="index.html#how-it-works">Process</a>
+          <a href="index.html#about">About</a>
+        </div>
+        <div class="footer-col">
+          <h4>Contact</h4>
+          <span class="footer-contact-name">Cole Smith &mdash; Utah</span>
+          <a href="tel:+18016132659">(801) 613-2659</a>
+          <a href="mailto:csmith@umbrellaplace.com">csmith@umbrellaplace.com</a>
+          <span class="footer-contact-name">Zachary Smith &mdash; Florida</span>
+          <a href="tel:+18507060145">(850) 706-0145</a>
+          <a href="mailto:zachary@umbrellaplace.com">zachary@umbrellaplace.com</a>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <p>&copy; 2026 Umbrella Place. All rights reserved.</p>
+        <p class="disclaimer">Umbrella Place is a loan brokerage and does not make loans directly. All loans are subject to lender approval. <a href="privacy.html">Privacy Policy</a></p>
+      </div>
+    </footer>
+    <script src="./script.js"></script>
+    <script src="./calculator.js"></script>
+  </body>
+</html>

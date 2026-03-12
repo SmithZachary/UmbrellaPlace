@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0f2847"/>
+      <stop offset="100%" style="stop-color:#1a3c6e"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <!-- Gold accent line at top -->
+  <rect x="0" y="0" width="1200" height="4" fill="#c9a84c"/>
+  <!-- Umbrella icon (simplified) -->
+  <g transform="translate(510, 120) scale(2.5)">
+    <path fill="#c9a84c" d="M40 30c0-20 16-36 36-36s36 16 36 36c0 1-1 2-2 2H42c-1 0-2-1-2-2z" opacity="0.9"/>
+    <rect x="74" y="28" width="4" height="40" rx="2" fill="#ffffff" opacity="0.9"/>
+  </g>
+  <!-- Company name -->
+  <text x="600" y="360" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="72" font-weight="700" fill="#ffffff" letter-spacing="2">Umbrella Place</text>
+  <!-- Tagline -->
+  <text x="600" y="420" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="28" fill="#c9a84c" letter-spacing="4" font-weight="500">PRIVATE REAL ESTATE LOANS</text>
+  <!-- Subtitle -->
+  <text x="600" y="480" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="22" fill="rgba(255,255,255,0.7)">Bridge | Fix &amp; Flip | Construction | DSCR | Hard Money</text>
+  <!-- Bottom accent line -->
+  <rect x="450" y="520" width="300" height="2" fill="#c9a84c" opacity="0.6"/>
+  <text x="600" y="560" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="18" fill="rgba(255,255,255,0.5)">umbrellaplace.com</text>
+</svg>
