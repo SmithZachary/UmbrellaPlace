@@ -370,6 +370,7 @@
           </div>
         </div>
 
+        <!-- ===== SOCIAL MEDIA AGENT ===== -->
         <div class="view" id="view-agent-social">
           <div class="agents-grid">
             <div class="agent-card" style="grid-column: 1 / -1;">
@@ -377,23 +378,174 @@
                 <div class="agent-icon social">&#128227;</div>
                 <div>
                   <h4>Social Media Agent</h4>
-                  <div class="agent-status"><span class="status-dot coming-soon"></span> Coming Soon</div>
+                  <div class="agent-status"><span class="status-dot active"></span> Active</div>
+                </div>
+                <div style="margin-left:auto;display:flex;align-items:center;gap:0.5rem">
+                  <span class="agent-last-run" id="social-last-run"></span>
+                  <button class="btn btn-primary btn-sm" id="btn-run-social">Run Agent</button>
                 </div>
               </div>
-              <p>Generate platform-specific content, schedule posts, and grow your reach across LinkedIn, Facebook, Instagram, and X. AI-powered content creation with your brand voice.</p>
+              <p>Auto-generates and queues content for LinkedIn, Facebook, Instagram, X, and Substack. Picks from your configured topics, writes in your brand voice, and batches posts across all platforms.</p>
             </div>
           </div>
+
+          <div class="stats-grid" style="margin-top:1rem">
+            <div class="stat-card">
+              <div class="stat-card-label">Posts Generated</div>
+              <div class="stat-card-value" id="social-stat-total">--</div>
+              <div class="stat-card-sub">All time</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-card-label">Published</div>
+              <div class="stat-card-value" id="social-stat-published">--</div>
+              <div class="stat-card-sub">Marked as posted</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-card-label">Drafts</div>
+              <div class="stat-card-value" id="social-stat-drafts">--</div>
+              <div class="stat-card-sub">Ready to publish</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-card-label">Top Platform</div>
+              <div class="stat-card-value" id="social-stat-platform" style="font-size:1.1rem">--</div>
+              <div class="stat-card-sub">Most content</div>
+            </div>
+          </div>
+
+          <!-- Configuration -->
           <div class="card" style="margin-top:1rem">
+            <div class="card-header config-toggle" id="social-config-toggle">
+              <h3>Configuration</h3>
+              <span class="config-arrow">&#9660;</span>
+            </div>
+            <div class="card-body padded config-panel" id="social-config-panel" style="display:none">
+              <div class="agent-form">
+                <div class="agent-form-group">
+                  <label>Platforms</label>
+                  <div class="checkbox-row">
+                    <label class="checkbox-label"><input type="checkbox" value="linkedin" checked /> LinkedIn</label>
+                    <label class="checkbox-label"><input type="checkbox" value="facebook" checked /> Facebook</label>
+                    <label class="checkbox-label"><input type="checkbox" value="instagram" checked /> Instagram</label>
+                    <label class="checkbox-label"><input type="checkbox" value="x" checked /> X (Twitter)</label>
+                    <label class="checkbox-label"><input type="checkbox" value="substack" /> Substack</label>
+                  </div>
+                </div>
+                <div class="agent-form-group" style="margin-top:0.75rem">
+                  <label>Topics (one per line) — agent picks randomly each run</label>
+                  <textarea id="social-config-topics" class="reply-textarea" style="min-height:120px" placeholder="Benefits of bridge loans for time-sensitive deals
+How DSCR loans let you qualify without W2s
+Fix and flip financing: what new investors should know
+Why private lending is faster than traditional banks
+BRRRR strategy explained for rental investors
+New construction loans: phased draws and how they work
+Hard money vs. conventional: when to use each
+Real estate investing mistakes to avoid in 2026
+How to evaluate a fix and flip deal (the 70% rule)
+Private lending myths debunked"></textarea>
+                </div>
+                <div class="agent-form-group" style="margin-top:0.75rem">
+                  <label>Tone / Voice Notes</label>
+                  <input type="text" id="social-config-tone" class="filter-input" style="width:100%" value="Professional, educational, approachable — position as trusted guide for investors" />
+                </div>
+                <div style="margin-top:0.75rem">
+                  <button class="btn btn-primary btn-sm" id="btn-save-social-config">Save Configuration</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Quick Generate (manual single post) -->
+          <div class="card" style="margin-top:1rem">
+            <div class="card-header"><h3>Quick Generate</h3></div>
             <div class="card-body padded">
-              <div class="empty-state">
+              <div class="agent-form">
+                <div class="agent-form-row">
+                  <div class="agent-form-group">
+                    <label>Platform</label>
+                    <select id="social-platform" class="filter-select">
+                      <option value="linkedin">LinkedIn</option>
+                      <option value="facebook">Facebook</option>
+                      <option value="instagram">Instagram</option>
+                      <option value="x">X (Twitter)</option>
+                      <option value="substack">Substack</option>
+                    </select>
+                  </div>
+                  <div class="agent-form-group">
+                    <label>Tone</label>
+                    <select id="social-tone" class="filter-select">
+                      <option value="professional and educational">Educational</option>
+                      <option value="conversational and engaging">Conversational</option>
+                      <option value="authoritative thought leader">Thought Leader</option>
+                      <option value="storytelling with a real example">Story-Based</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="agent-form-group" style="margin-top:0.75rem">
+                  <label>Topic / Prompt</label>
+                  <input type="text" id="social-topic" class="filter-input" style="width:100%" placeholder="e.g. Benefits of bridge loans for time-sensitive acquisitions" />
+                </div>
+                <div style="margin-top:0.75rem">
+                  <button class="btn btn-primary" id="btn-generate-post">Generate Post</button>
+                </div>
+              </div>
+
+              <div id="social-output" class="agent-output" style="display:none;margin-top:1rem">
+                <label style="font-size:0.75rem;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-muted);display:block;margin-bottom:0.5rem">Generated Content</label>
+                <textarea id="social-output-text" class="reply-textarea" style="min-height:160px"></textarea>
+                <div class="reply-actions" style="margin-top:0.75rem">
+                  <button class="btn btn-secondary btn-sm" id="btn-copy-post">Copy</button>
+                  <button class="btn btn-secondary btn-sm" id="btn-regenerate-post">Regenerate</button>
+                  <button class="btn btn-primary btn-sm" id="btn-save-post">Save as Draft</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Content Library -->
+          <div class="card" style="margin-top:1rem">
+            <div class="card-header">
+              <h3>Content Library</h3>
+              <div class="filters-inline">
+                <select class="filter-select" id="social-filter-platform">
+                  <option value="">All Platforms</option>
+                  <option value="linkedin">LinkedIn</option>
+                  <option value="facebook">Facebook</option>
+                  <option value="instagram">Instagram</option>
+                  <option value="x">X</option>
+                  <option value="substack">Substack</option>
+                </select>
+                <select class="filter-select" id="social-filter-status">
+                  <option value="">All Statuses</option>
+                  <option value="draft">Draft</option>
+                  <option value="queued">Queued</option>
+                  <option value="posted">Posted</option>
+                </select>
+              </div>
+            </div>
+            <div class="card-body">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Platform</th>
+                    <th>Topic</th>
+                    <th>Content Preview</th>
+                    <th>Status</th>
+                    <th>Date</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="social-posts-table"></tbody>
+              </table>
+              <div class="empty-state" id="social-posts-empty" style="display:none">
                 <div class="empty-state-icon">&#128227;</div>
-                <h4>Social Media Agent — Phase 3</h4>
-                <p>This agent will generate and schedule social media content across platforms. Launching soon.</p>
+                <h4>No posts yet</h4>
+                <p>Click "Run Agent" to auto-generate a batch or use Quick Generate above.</p>
               </div>
             </div>
           </div>
         </div>
 
+        <!-- ===== WEB SCOUT AGENT ===== -->
         <div class="view" id="view-agent-scout">
           <div class="agents-grid">
             <div class="agent-card" style="grid-column: 1 / -1;">
@@ -401,23 +553,196 @@
                 <div class="agent-icon scout">&#128269;</div>
                 <div>
                   <h4>Web Scout Agent</h4>
-                  <div class="agent-status"><span class="status-dot coming-soon"></span> Coming Soon</div>
+                  <div class="agent-status"><span class="status-dot active"></span> Active</div>
+                </div>
+                <div style="margin-left:auto;display:flex;align-items:center;gap:0.5rem">
+                  <span class="agent-last-run" id="scout-last-run"></span>
+                  <button class="btn btn-primary btn-sm" id="btn-run-scout">Run Scan</button>
                 </div>
               </div>
-              <p>Monitors Reddit, BiggerPockets, and real estate forums for borrowers asking about private lending. Surfaces high-intent conversations for you to engage with.</p>
+              <p>Scans Reddit, BiggerPockets, and real estate forums for people asking about private lending, hard money, fix &amp; flip financing, bridge loans, and DSCR. AI analyzes and scores each conversation for lead potential.</p>
             </div>
           </div>
+
+          <div class="stats-grid" style="margin-top:1rem">
+            <div class="stat-card">
+              <div class="stat-card-label">Opportunities Found</div>
+              <div class="stat-card-value" id="scout-stat-total">--</div>
+              <div class="stat-card-sub">All time</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-card-label">High Intent</div>
+              <div class="stat-card-value" id="scout-stat-high">--</div>
+              <div class="stat-card-sub">Score 7+</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-card-label">Engaged</div>
+              <div class="stat-card-value" id="scout-stat-engaged">--</div>
+              <div class="stat-card-sub">Response drafted</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-card-label">Avg Score</div>
+              <div class="stat-card-value" id="scout-stat-avg">--</div>
+              <div class="stat-card-sub">Out of 10</div>
+            </div>
+          </div>
+
+          <!-- Configuration -->
           <div class="card" style="margin-top:1rem">
+            <div class="card-header config-toggle" id="scout-config-toggle">
+              <h3>Configuration</h3>
+              <span class="config-arrow">&#9660;</span>
+            </div>
+            <div class="card-body padded config-panel" id="scout-config-panel" style="display:none">
+              <div class="agent-form">
+                <div class="agent-form-group">
+                  <label>Keywords to scan (one per line)</label>
+                  <textarea id="scout-config-keywords" class="reply-textarea" style="min-height:100px" placeholder="hard money loan
+bridge loan real estate
+fix and flip financing
+private lender
+DSCR loan rental
+need funding for flip
+looking for hard money
+construction loan private
+cash out refinance investor
+need fast closing loan"></textarea>
+                </div>
+                <div class="agent-form-group" style="margin-top:0.75rem">
+                  <label>Subreddits to scan (one per line)</label>
+                  <textarea id="scout-config-subreddits" class="reply-textarea" style="min-height:80px" placeholder="realestateinvesting
+realestate
+RealEstateFlipping
+CommercialRealEstate
+hardmoney
+landlords"></textarea>
+                </div>
+                <div class="agent-form-row" style="margin-top:0.75rem">
+                  <div class="agent-form-group">
+                    <label>Minimum score to surface</label>
+                    <select id="scout-config-minscore" class="filter-select">
+                      <option value="3">3+ (show most)</option>
+                      <option value="5" selected>5+ (moderate)</option>
+                      <option value="7">7+ (high intent only)</option>
+                    </select>
+                  </div>
+                  <div class="agent-form-group">
+                    <label>Scan period</label>
+                    <select id="scout-config-period" class="filter-select">
+                      <option value="day">Last 24 hours</option>
+                      <option value="week" selected>Last week</option>
+                      <option value="month">Last month</option>
+                    </select>
+                  </div>
+                </div>
+                <div style="margin-top:0.75rem">
+                  <button class="btn btn-primary btn-sm" id="btn-save-scout-config">Save Configuration</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Manual Analyze -->
+          <div class="card" style="margin-top:1rem">
+            <div class="card-header"><h3>Manual Analyze</h3></div>
             <div class="card-body padded">
-              <div class="empty-state">
+              <div class="agent-form">
+                <div class="agent-form-row">
+                  <div class="agent-form-group">
+                    <label>Source</label>
+                    <select id="scout-source" class="filter-select">
+                      <option value="reddit">Reddit</option>
+                      <option value="biggerpockets">BiggerPockets</option>
+                      <option value="facebook">Facebook Group</option>
+                      <option value="linkedin">LinkedIn</option>
+                      <option value="other">Other</option>
+                    </select>
+                  </div>
+                  <div class="agent-form-group">
+                    <label>URL (optional)</label>
+                    <input type="text" id="scout-url" class="filter-input" style="width:100%" placeholder="https://..." />
+                  </div>
+                </div>
+                <div class="agent-form-group" style="margin-top:0.75rem">
+                  <label>Post / Conversation Content</label>
+                  <textarea id="scout-description" class="reply-textarea" style="min-height:80px" placeholder="Paste the post or conversation content here..."></textarea>
+                </div>
+                <div style="margin-top:0.75rem">
+                  <button class="btn btn-primary" id="btn-analyze-opp">Analyze</button>
+                </div>
+              </div>
+
+              <div id="scout-output" class="agent-output" style="display:none;margin-top:1rem">
+                <div class="scout-analysis-card">
+                  <div class="scout-analysis-header">
+                    <div>
+                      <span class="scout-analysis-label">Lead Score</span>
+                      <span class="lead-score" id="scout-output-score">--</span>
+                    </div>
+                    <div>
+                      <span class="scout-analysis-label">Loan Type</span>
+                      <span id="scout-output-type" style="font-weight:600">--</span>
+                    </div>
+                  </div>
+                  <div style="margin-top:0.75rem">
+                    <span class="scout-analysis-label">Summary</span>
+                    <p id="scout-output-summary" style="font-size:0.875rem;margin-top:0.25rem">--</p>
+                  </div>
+                  <div style="margin-top:0.75rem">
+                    <span class="scout-analysis-label">Suggested Approach</span>
+                    <p id="scout-output-approach" style="font-size:0.875rem;margin-top:0.25rem">--</p>
+                  </div>
+                  <div style="margin-top:0.75rem" id="scout-output-signals-wrap">
+                    <span class="scout-analysis-label">Signals</span>
+                    <div id="scout-output-signals" style="margin-top:0.25rem;display:flex;flex-wrap:wrap;gap:0.35rem"></div>
+                  </div>
+                  <div class="reply-actions" style="margin-top:0.75rem">
+                    <button class="btn btn-primary btn-sm" id="btn-engage-opp">Draft Response</button>
+                    <button class="btn btn-secondary btn-sm" id="btn-dismiss-opp">Dismiss</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Opportunities Pipeline -->
+          <div class="card" style="margin-top:1rem">
+            <div class="card-header">
+              <h3>Opportunities Pipeline</h3>
+              <div class="filters-inline">
+                <select class="filter-select" id="scout-filter-status">
+                  <option value="">All</option>
+                  <option value="new">New</option>
+                  <option value="engaged">Engaged</option>
+                  <option value="dismissed">Dismissed</option>
+                </select>
+              </div>
+            </div>
+            <div class="card-body">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Source</th>
+                    <th>Summary</th>
+                    <th>Loan Type</th>
+                    <th>Score</th>
+                    <th>Status</th>
+                    <th>Date</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="scout-opps-table"></tbody>
+              </table>
+              <div class="empty-state" id="scout-opps-empty" style="display:none">
                 <div class="empty-state-icon">&#128269;</div>
-                <h4>Web Scout Agent — Phase 4</h4>
-                <p>This agent will find relevant conversations online and surface them for engagement. Launching soon.</p>
+                <h4>No opportunities yet</h4>
+                <p>Click "Run Scan" to search Reddit or paste a conversation to analyze manually.</p>
               </div>
             </div>
           </div>
         </div>
 
+        <!-- ===== ENGAGEMENT AGENT ===== -->
         <div class="view" id="view-agent-engage">
           <div class="agents-grid">
             <div class="agent-card" style="grid-column: 1 / -1;">
@@ -425,18 +750,139 @@
                 <div class="agent-icon engage" style="background:#faf5ff">&#128172;</div>
                 <div>
                   <h4>Engagement Agent</h4>
-                  <div class="agent-status"><span class="status-dot coming-soon"></span> Coming Soon</div>
+                  <div class="agent-status"><span class="status-dot active"></span> Active</div>
+                </div>
+                <div style="margin-left:auto;display:flex;align-items:center;gap:0.5rem">
+                  <span class="agent-last-run" id="engage-last-run"></span>
+                  <button class="btn btn-primary btn-sm" id="btn-run-engage">Run Agent</button>
                 </div>
               </div>
-              <p>Drafts contextual replies and DMs for Web Scout leads. Reviews, approves, and sends responses across platforms with your voice and expertise.</p>
+              <p>Auto-drafts contextual replies, comments, and DMs for opportunities found by Web Scout. Writes platform-appropriate responses in your voice to drive leads to your site. Review and approve before posting.</p>
             </div>
           </div>
+
+          <div class="stats-grid" style="margin-top:1rem">
+            <div class="stat-card">
+              <div class="stat-card-label">Drafts Created</div>
+              <div class="stat-card-value" id="engage-stat-drafts">--</div>
+              <div class="stat-card-sub">All time</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-card-label">Approved</div>
+              <div class="stat-card-value" id="engage-stat-approved">--</div>
+              <div class="stat-card-sub">Ready to post</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-card-label">Sent</div>
+              <div class="stat-card-value" id="engage-stat-sent">--</div>
+              <div class="stat-card-sub">Posted responses</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-card-label">Pending Review</div>
+              <div class="stat-card-value" id="engage-stat-pending">--</div>
+              <div class="stat-card-sub">Needs your input</div>
+            </div>
+          </div>
+
+          <!-- Configuration -->
           <div class="card" style="margin-top:1rem">
+            <div class="card-header config-toggle" id="engage-config-toggle">
+              <h3>Configuration</h3>
+              <span class="config-arrow">&#9660;</span>
+            </div>
+            <div class="card-body padded config-panel" id="engage-config-panel" style="display:none">
+              <div class="agent-form">
+                <div class="agent-form-row">
+                  <div class="agent-form-group">
+                    <label>Min opportunity score to auto-draft</label>
+                    <select id="engage-config-minscore" class="filter-select">
+                      <option value="5">5+ (draft for most)</option>
+                      <option value="7" selected>7+ (high intent only)</option>
+                      <option value="9">9+ (very selective)</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="agent-form-group" style="margin-top:0.75rem">
+                  <label>Voice / Tone Notes</label>
+                  <input type="text" id="engage-config-tone" class="filter-input" style="width:100%" value="Helpful, genuine, lead with value — never salesy or spammy" />
+                </div>
+                <div style="margin-top:0.75rem">
+                  <button class="btn btn-primary btn-sm" id="btn-save-engage-config">Save Configuration</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Quick Draft -->
+          <div class="card" style="margin-top:1rem">
+            <div class="card-header"><h3>Quick Draft</h3></div>
             <div class="card-body padded">
-              <div class="empty-state">
+              <div class="agent-form">
+                <div class="agent-form-row">
+                  <div class="agent-form-group">
+                    <label>Platform</label>
+                    <select id="engage-platform" class="filter-select">
+                      <option value="reddit">Reddit</option>
+                      <option value="biggerpockets">BiggerPockets</option>
+                      <option value="facebook">Facebook</option>
+                      <option value="linkedin">LinkedIn</option>
+                      <option value="other">Other</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="agent-form-group" style="margin-top:0.75rem">
+                  <label>Conversation Context</label>
+                  <textarea id="engage-context" class="reply-textarea" style="min-height:80px" placeholder="Paste the conversation you want to respond to..."></textarea>
+                </div>
+                <div style="margin-top:0.75rem">
+                  <button class="btn btn-primary" id="btn-draft-engage">Generate Draft</button>
+                </div>
+              </div>
+
+              <div id="engage-output" class="agent-output" style="display:none;margin-top:1rem">
+                <label style="font-size:0.75rem;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-muted);display:block;margin-bottom:0.5rem">Draft Response</label>
+                <textarea id="engage-output-text" class="reply-textarea" style="min-height:120px"></textarea>
+                <div class="reply-actions" style="margin-top:0.75rem">
+                  <button class="btn btn-secondary btn-sm" id="btn-copy-engage">Copy</button>
+                  <button class="btn btn-secondary btn-sm" id="btn-redraft-engage">Regenerate</button>
+                  <button class="btn btn-primary btn-sm" id="btn-approve-engage">Approve</button>
+                  <button class="btn btn-primary btn-sm" id="btn-mark-sent-engage" style="background:var(--success)">Mark as Sent</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Engagement History -->
+          <div class="card" style="margin-top:1rem">
+            <div class="card-header">
+              <h3>Engagement History</h3>
+              <div class="filters-inline">
+                <select class="filter-select" id="engage-filter-status">
+                  <option value="">All</option>
+                  <option value="pending">Pending</option>
+                  <option value="approved">Approved</option>
+                  <option value="sent">Sent</option>
+                </select>
+              </div>
+            </div>
+            <div class="card-body">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Platform</th>
+                    <th>Context Preview</th>
+                    <th>Draft Preview</th>
+                    <th>Status</th>
+                    <th>Date</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="engage-history-table"></tbody>
+              </table>
+              <div class="empty-state" id="engage-history-empty" style="display:none">
                 <div class="empty-state-icon">&#128172;</div>
-                <h4>Engagement Agent — Phase 4</h4>
-                <p>This agent will help you reply, DM, and bridge leads from online conversations. Launching soon.</p>
+                <h4>No engagements yet</h4>
+                <p>Click "Run Agent" to auto-draft responses for pending opportunities, or use Quick Draft above.</p>
               </div>
             </div>
           </div>

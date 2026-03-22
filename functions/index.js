@@ -715,3 +715,520 @@ exports.aiDraftReply = onRequest(
   }
 );
 
+// ===== SOCIAL MEDIA AGENT =====
+exports.generateSocialPost = onRequest(
+  { cors: ALLOWED_ORIGINS },
+  async (req, res) => {
+    if (req.method !== "POST") {
+      res.status(405).json({ error: "Method not allowed" });
+      return;
+    }
+    try {
+      await verifyAuth(req);
+    } catch (e) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+
+    const { platform, topic, tone } = req.body;
+    if (!platform || !topic) {
+      res.status(400).json({ error: "Platform and topic are required" });
+      return;
+    }
+
+    const platformGuide = {
+      linkedin: "LinkedIn: Professional tone, 1-3 paragraphs, use line breaks for readability. Include a call-to-action. No hashtags in the body — add 3-5 relevant hashtags at the end.",
+      facebook: "Facebook: Conversational and approachable. 2-4 sentences, can be slightly longer. Include a question or CTA to drive engagement. 1-2 hashtags max.",
+      instagram: "Instagram: Visual storytelling caption. Start with a hook. Use short paragraphs with line breaks. Include a CTA. Add 10-15 relevant hashtags at the end separated by a line break.",
+      x: "X (Twitter): Under 280 characters. Punchy, direct, value-packed. 1-2 hashtags max. Can use thread format for complex topics (separate tweets with ---).",
+    };
+
+    try {
+      const client = new Anthropic({ apiKey: anthropicKey.value() });
+
+      const response = await client.messages.create({
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 600,
+        system: `You are the social media content creator for Umbrella Place, a private real estate loan brokerage. You create engaging, educational content about real estate investing and private lending.
+
+BRAND VOICE: Knowledgeable, approachable, confident but not pushy. Position Umbrella Place as a trusted guide for real estate investors.
+
+ABOUT UMBRELLA PLACE:
+- Private real estate loan brokerage connecting investors with 50+ lenders
+- Products: Bridge loans, fix & flip, new construction, DSCR rental loans
+- Close in 7-14 days, no upfront fees, 48 states
+- Founded by Zachary Smith and Cole Smith
+
+RULES:
+- Never quote specific rates or percentages
+- Focus on education, value, and thought leadership
+- Include subtle brand mentions without being overly promotional
+- Write content that real estate investors would want to share
+- ${platformGuide[platform] || "Write platform-appropriate content."}`,
+        messages: [{
+          role: "user",
+          content: `Generate a ${platform} post about: ${topic}\nTone: ${tone || "professional and educational"}`,
+        }],
+      });
+
+      const content = response.content[0]?.text || "";
+
+      // Save to Firestore
+      const postDoc = await admin.firestore().collection("social-posts").add({
+        platform,
+        topic,
+        tone: tone || "professional",
+        content,
+        status: "draft",
+        generatedAt: new Date().toISOString(),
+        generatedBy: "social-agent",
+      });
+
+      res.status(200).json({ content, postId: postDoc.id });
+    } catch (err) {
+      console.error("Social post generation error:", err);
+      res.status(500).json({ error: "Failed to generate post" });
+    }
+  }
+);
+
+// ===== WEB SCOUT AGENT =====
+exports.analyzeOpportunity = onRequest(
+  { cors: ALLOWED_ORIGINS },
+  async (req, res) => {
+    if (req.method !== "POST") {
+      res.status(405).json({ error: "Method not allowed" });
+      return;
+    }
+    try {
+      await verifyAuth(req);
+    } catch (e) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+
+    const { source, url, description } = req.body;
+    if (!description) {
+      res.status(400).json({ error: "Description is required" });
+      return;
+    }
+
+    try {
+      const client = new Anthropic({ apiKey: anthropicKey.value() });
+
+      const response = await client.messages.create({
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 500,
+        system: `You are a lead intelligence analyst for Umbrella Place, a private real estate loan brokerage. You analyze online conversations and posts from real estate forums, Reddit, BiggerPockets, etc. to identify potential borrowers.
+
+Your job is to:
+1. Determine if the person is a potential lead for private lending (bridge, fix & flip, construction, DSCR)
+2. Score the opportunity 1-10 (10 = highly likely to need private lending soon)
+3. Identify the likely loan type they need
+4. Summarize what they're looking for
+5. Suggest the best approach to engage them
+
+Respond in this exact JSON format:
+{"score": <number>, "loanType": "<type>", "summary": "<1-2 sentences>", "approach": "<1-2 sentences on how to engage>", "signals": ["<signal1>", "<signal2>"]}`,
+        messages: [{
+          role: "user",
+          content: `Analyze this online conversation/post for lead potential:\n\nSource: ${source || "Unknown"}\nURL: ${url || "N/A"}\nContent: ${description}`,
+        }],
+      });
+
+      const text = response.content[0]?.text || "{}";
+      let analysis;
+      try {
+        analysis = JSON.parse(text);
+      } catch {
+        analysis = { score: 0, summary: text, loanType: "unknown", approach: "", signals: [] };
+      }
+
+      // Save to Firestore
+      const oppDoc = await admin.firestore().collection("scout-opportunities").add({
+        source: source || "manual",
+        url: url || "",
+        description,
+        analysis,
+        score: analysis.score || 0,
+        status: "new",
+        discoveredAt: new Date().toISOString(),
+        addedBy: "scout-agent",
+      });
+
+      res.status(200).json({ analysis, opportunityId: oppDoc.id });
+    } catch (err) {
+      console.error("Opportunity analysis error:", err);
+      res.status(500).json({ error: "Failed to analyze opportunity" });
+    }
+  }
+);
+
+// ===== ENGAGEMENT AGENT =====
+exports.draftEngagement = onRequest(
+  { cors: ALLOWED_ORIGINS },
+  async (req, res) => {
+    if (req.method !== "POST") {
+      res.status(405).json({ error: "Method not allowed" });
+      return;
+    }
+    try {
+      await verifyAuth(req);
+    } catch (e) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+
+    const { opportunityId, platform, context } = req.body;
+    if (!context) {
+      res.status(400).json({ error: "Context is required" });
+      return;
+    }
+
+    try {
+      const client = new Anthropic({ apiKey: anthropicKey.value() });
+
+      const platformTone = {
+        reddit: "Reddit-appropriate: helpful, not salesy. Answer their question with genuine expertise. Mention you work in private lending only if relevant. Never link-drop.",
+        biggerpockets: "BiggerPockets style: knowledgeable investor peer. Share real insights. You can mention you broker private loans if directly relevant to their question.",
+        facebook: "Facebook group friendly: conversational, helpful. Share expertise naturally. Can mention Umbrella Place if they're asking for lender recommendations.",
+        linkedin: "LinkedIn professional: thought-leader tone. Provide value-first insights. Can be more direct about your brokerage services.",
+        other: "Be helpful and genuine. Provide real value. Only mention Umbrella Place if naturally relevant.",
+      };
+
+      const response = await client.messages.create({
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 400,
+        system: `You are Zachary Smith, Managing Partner at Umbrella Place (private real estate loan brokerage). You're drafting a response to engage with a potential lead found online.
+
+YOUR EXPERTISE: Bridge loans, fix & flip financing, new construction loans, DSCR rental loans. 50+ lender network, close in 7-14 days, no upfront fees, 48 states.
+
+TONE: ${platformTone[platform] || platformTone.other}
+
+RULES:
+- Lead with value — answer their question or solve their problem first
+- Never be spammy or overtly promotional
+- Sound like a real person, not a bot
+- Keep it concise (2-4 sentences for short-form, up to a paragraph for forums)
+- Never quote specific rates`,
+        messages: [{
+          role: "user",
+          content: `Draft a response to engage this potential lead:\n\nPlatform: ${platform || "online forum"}\nContext: ${context}`,
+        }],
+      });
+
+      const draft = response.content[0]?.text || "";
+
+      // Save draft
+      const draftDoc = await admin.firestore().collection("engagement-drafts").add({
+        opportunityId: opportunityId || "",
+        platform: platform || "other",
+        context,
+        draft,
+        status: "pending",
+        createdAt: new Date().toISOString(),
+        createdBy: "engagement-agent",
+      });
+
+      res.status(200).json({ draft, draftId: draftDoc.id });
+    } catch (err) {
+      console.error("Engagement draft error:", err);
+      res.status(500).json({ error: "Failed to generate draft" });
+    }
+  }
+);
+
+// ===== SAVE AGENT CONFIG =====
+exports.saveAgentConfig = onRequest(
+  { cors: ALLOWED_ORIGINS },
+  async (req, res) => {
+    if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
+    try { await verifyAuth(req); } catch (e) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+    const { agent, config } = req.body;
+    if (!agent || !config) { res.status(400).json({ error: "Agent name and config required" }); return; }
+
+    try {
+      await admin.firestore().collection("agent-config").doc(agent).set(config, { merge: true });
+      res.status(200).json({ success: true });
+    } catch (err) {
+      console.error("Save agent config error:", err);
+      res.status(500).json({ error: "Failed to save config" });
+    }
+  }
+);
+
+// ===== RUN SOCIAL MEDIA AGENT (batch) =====
+exports.runSocialAgent = onRequest(
+  { cors: ALLOWED_ORIGINS, timeoutSeconds: 300 },
+  async (req, res) => {
+    if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
+    try { await verifyAuth(req); } catch (e) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+    try {
+      // Load config
+      const configDoc = await admin.firestore().collection("agent-config").doc("social").get();
+      const config = configDoc.exists ? configDoc.data() : {};
+      const topics = (config.topics || "").split("\n").map(t => t.trim()).filter(Boolean);
+      const platforms = config.platforms || ["linkedin", "facebook", "instagram", "x"];
+      const toneNotes = config.tone || "Professional and educational";
+
+      if (topics.length === 0) {
+        res.status(400).json({ error: "No topics configured. Add topics in the configuration panel." });
+        return;
+      }
+
+      const client = new Anthropic({ apiKey: anthropicKey.value() });
+      const results = [];
+
+      const platformGuide = {
+        linkedin: "LinkedIn: Professional tone, 1-3 paragraphs, line breaks for readability. Call-to-action. 3-5 hashtags at the end.",
+        facebook: "Facebook: Conversational, 2-4 sentences. Question or CTA for engagement. 1-2 hashtags max.",
+        instagram: "Instagram: Visual storytelling caption. Hook first. Short paragraphs. CTA. 10-15 hashtags at end.",
+        x: "X (Twitter): Under 280 characters. Punchy, direct. 1-2 hashtags max.",
+        substack: "Substack: Newsletter-style, 3-5 paragraphs. Educational deep-dive. Include actionable takeaways. No hashtags.",
+      };
+
+      // Pick a random topic for each platform
+      for (const platform of platforms) {
+        const topic = topics[Math.floor(Math.random() * topics.length)];
+        try {
+          const response = await client.messages.create({
+            model: "claude-sonnet-4-20250514",
+            max_tokens: 600,
+            system: `You are the social media content creator for Umbrella Place, a private real estate loan brokerage. Create engaging, educational content about real estate investing and private lending.\n\nBRAND VOICE: ${toneNotes}\n\nABOUT: Private real estate loan brokerage, 50+ lenders, bridge/fix-flip/construction/DSCR loans, close in 7-14 days, no upfront fees, 48 states. Founded by Zachary Smith and Cole Smith.\n\nRULES: Never quote specific rates. Focus on education and value. Subtle brand mentions. ${platformGuide[platform] || "Write platform-appropriate content."}`,
+            messages: [{ role: "user", content: `Generate a ${platform} post about: ${topic}\nTone: ${toneNotes}` }],
+          });
+          const content = response.content[0]?.text || "";
+          const doc = await admin.firestore().collection("social-posts").add({
+            platform, topic, tone: toneNotes, content,
+            status: "queued", generatedAt: new Date().toISOString(), generatedBy: "social-agent-batch",
+          });
+          results.push({ platform, topic, postId: doc.id });
+        } catch (genErr) {
+          console.error(`Social agent: failed for ${platform}:`, genErr.message);
+          results.push({ platform, topic, error: genErr.message });
+        }
+      }
+
+      // Log activity
+      await admin.firestore().collection("agent-activity").add({
+        agent: "social", action: "batch-generate",
+        details: `Generated ${results.filter(r => !r.error).length} posts across ${platforms.length} platforms`,
+        results, timestamp: new Date().toISOString(),
+      });
+
+      // Update last run
+      await admin.firestore().collection("agent-config").doc("social").set(
+        { lastRun: new Date().toISOString() }, { merge: true }
+      );
+
+      res.status(200).json({ success: true, generated: results.filter(r => !r.error).length, results });
+    } catch (err) {
+      console.error("Run social agent error:", err);
+      res.status(500).json({ error: "Failed to run social agent" });
+    }
+  }
+);
+
+// ===== RUN WEB SCOUT AGENT (Reddit scan) =====
+exports.runScoutAgent = onRequest(
+  { cors: ALLOWED_ORIGINS, timeoutSeconds: 300 },
+  async (req, res) => {
+    if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
+    try { await verifyAuth(req); } catch (e) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+    try {
+      const configDoc = await admin.firestore().collection("agent-config").doc("scout").get();
+      const config = configDoc.exists ? configDoc.data() : {};
+      const keywords = (config.keywords || "").split("\n").map(k => k.trim()).filter(Boolean);
+      const subreddits = (config.subreddits || "").split("\n").map(s => s.trim()).filter(Boolean);
+      const minScore = parseInt(config.minScore) || 5;
+      const period = config.period || "week";
+
+      if (keywords.length === 0 || subreddits.length === 0) {
+        res.status(400).json({ error: "Configure keywords and subreddits first." });
+        return;
+      }
+
+      // Get existing opportunity URLs to avoid duplicates
+      const existingSnap = await admin.firestore().collection("scout-opportunities")
+        .orderBy("discoveredAt", "desc").limit(200).get();
+      const existingUrls = new Set(existingSnap.docs.map(d => d.data().url).filter(Boolean));
+
+      const client = new Anthropic({ apiKey: anthropicKey.value() });
+      const results = [];
+      let found = 0;
+
+      // Scan Reddit — pick up to 3 keyword/subreddit combos to stay within timeout
+      const combos = [];
+      for (const sub of subreddits) {
+        for (const kw of keywords) {
+          combos.push({ sub, kw });
+        }
+      }
+      // Shuffle and take first 5 combos
+      for (let i = combos.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [combos[i], combos[j]] = [combos[j], combos[i]];
+      }
+      const selectedCombos = combos.slice(0, 5);
+
+      for (const { sub, kw } of selectedCombos) {
+        try {
+          const redditUrl = `https://www.reddit.com/r/${encodeURIComponent(sub)}/search.json?q=${encodeURIComponent(kw)}&sort=new&limit=5&t=${period}&restrict_sr=on`;
+          const redditRes = await fetch(redditUrl, {
+            headers: { "User-Agent": "UmbrellaPlace/1.0 (lead-scout)" },
+          });
+
+          if (!redditRes.ok) continue;
+          const redditData = await redditRes.json();
+          const posts = (redditData.data?.children || []).filter(p => p.kind === "t3");
+
+          for (const post of posts) {
+            const data = post.data;
+            const postUrl = `https://www.reddit.com${data.permalink}`;
+            if (existingUrls.has(postUrl)) continue;
+            existingUrls.add(postUrl);
+
+            const postText = `Title: ${data.title}\n\n${(data.selftext || "").slice(0, 1000)}`;
+
+            // Analyze with AI
+            const analysisRes = await client.messages.create({
+              model: "claude-sonnet-4-20250514",
+              max_tokens: 400,
+              system: `You are a lead intelligence analyst for Umbrella Place, a private real estate loan brokerage. Analyze this Reddit post to determine if the poster could be a lead for private lending (bridge, fix & flip, construction, DSCR).\n\nScore 1-10 (10 = highly likely to need private lending soon). Respond in JSON:\n{"score": <number>, "loanType": "<type>", "summary": "<1-2 sentences>", "approach": "<how to engage>", "signals": ["<signal1>", "<signal2>"]}`,
+              messages: [{ role: "user", content: `Analyze for lead potential:\n\nSubreddit: r/${sub}\nPost: ${postText}` }],
+            });
+
+            let analysis;
+            try {
+              analysis = JSON.parse(analysisRes.content[0]?.text || "{}");
+            } catch {
+              analysis = { score: 0, summary: "Could not analyze", loanType: "unknown", approach: "", signals: [] };
+            }
+
+            if (analysis.score >= minScore) {
+              const oppDoc = await admin.firestore().collection("scout-opportunities").add({
+                source: "reddit", subreddit: sub, url: postUrl,
+                title: data.title, description: postText,
+                author: data.author, analysis,
+                score: analysis.score || 0, status: "new",
+                discoveredAt: new Date().toISOString(), addedBy: "scout-agent-batch",
+              });
+              results.push({ url: postUrl, score: analysis.score, loanType: analysis.loanType, id: oppDoc.id });
+              found++;
+            }
+          }
+        } catch (scanErr) {
+          console.error(`Scout: error scanning r/${sub} for "${kw}":`, scanErr.message);
+        }
+      }
+
+      // Log activity
+      await admin.firestore().collection("agent-activity").add({
+        agent: "scout", action: "reddit-scan",
+        details: `Scanned ${selectedCombos.length} keyword/subreddit combos, found ${found} opportunities (score >= ${minScore})`,
+        results, timestamp: new Date().toISOString(),
+      });
+
+      await admin.firestore().collection("agent-config").doc("scout").set(
+        { lastRun: new Date().toISOString() }, { merge: true }
+      );
+
+      res.status(200).json({ success: true, scanned: selectedCombos.length, found, results });
+    } catch (err) {
+      console.error("Run scout agent error:", err);
+      res.status(500).json({ error: "Failed to run scout agent" });
+    }
+  }
+);
+
+// ===== RUN ENGAGEMENT AGENT (batch draft) =====
+exports.runEngagementAgent = onRequest(
+  { cors: ALLOWED_ORIGINS, timeoutSeconds: 300 },
+  async (req, res) => {
+    if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
+    try { await verifyAuth(req); } catch (e) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+    try {
+      const configDoc = await admin.firestore().collection("agent-config").doc("engagement").get();
+      const config = configDoc.exists ? configDoc.data() : {};
+      const minScore = parseInt(config.minScore) || 7;
+      const toneNotes = config.tone || "Helpful, genuine, lead with value";
+
+      // Get new opportunities that haven't been engaged yet
+      const oppsSnap = await admin.firestore().collection("scout-opportunities")
+        .where("status", "==", "new")
+        .orderBy("score", "desc")
+        .limit(10)
+        .get();
+
+      if (oppsSnap.empty) {
+        res.status(200).json({ success: true, drafted: 0, message: "No new opportunities to engage with." });
+        return;
+      }
+
+      const client = new Anthropic({ apiKey: anthropicKey.value() });
+      const results = [];
+      let drafted = 0;
+
+      const platformTone = {
+        reddit: "Reddit-appropriate: helpful, not salesy. Answer with genuine expertise. Mention private lending only if relevant. Never link-drop.",
+        biggerpockets: "BiggerPockets style: knowledgeable investor peer. Share real insights.",
+        facebook: "Facebook group friendly: conversational, helpful.",
+        linkedin: "LinkedIn professional: thought-leader tone.",
+        other: "Be helpful and genuine. Provide real value.",
+      };
+
+      for (const doc of oppsSnap.docs) {
+        const opp = doc.data();
+        if (opp.score < minScore) continue;
+
+        const platform = opp.source || "other";
+        const context = opp.description || opp.title || "";
+
+        try {
+          const response = await client.messages.create({
+            model: "claude-sonnet-4-20250514",
+            max_tokens: 400,
+            system: `You are Zachary Smith, Managing Partner at Umbrella Place (private real estate loan brokerage). Draft a response to engage a potential lead found online.\n\nEXPERTISE: Bridge loans, fix & flip, construction, DSCR rental loans. 50+ lenders, close in 7-14 days, no upfront fees, 48 states.\n\nTONE: ${platformTone[platform] || platformTone.other}. ${toneNotes}\n\nRULES: Lead with value. Never spammy. Sound like a real person. Concise. Never quote specific rates.`,
+            messages: [{ role: "user", content: `Draft a response for this ${platform} conversation:\n\n${context.slice(0, 1500)}` }],
+          });
+
+          const draft = response.content[0]?.text || "";
+          const draftDoc = await admin.firestore().collection("engagement-drafts").add({
+            opportunityId: doc.id, platform, context: context.slice(0, 500),
+            draft, status: "pending",
+            oppUrl: opp.url || "", oppTitle: opp.title || "",
+            createdAt: new Date().toISOString(), createdBy: "engagement-agent-batch",
+          });
+
+          // Mark opportunity as engaged
+          await admin.firestore().collection("scout-opportunities").doc(doc.id).update({ status: "engaged" });
+
+          results.push({ opportunityId: doc.id, draftId: draftDoc.id, platform });
+          drafted++;
+        } catch (draftErr) {
+          console.error("Engagement agent: draft error:", draftErr.message);
+        }
+      }
+
+      await admin.firestore().collection("agent-activity").add({
+        agent: "engagement", action: "batch-draft",
+        details: `Drafted ${drafted} responses for ${oppsSnap.size} opportunities`,
+        results, timestamp: new Date().toISOString(),
+      });
+
+      await admin.firestore().collection("agent-config").doc("engagement").set(
+        { lastRun: new Date().toISOString() }, { merge: true }
+      );
+
+      res.status(200).json({ success: true, drafted, results });
+    } catch (err) {
+      console.error("Run engagement agent error:", err);
+      res.status(500).json({ error: "Failed to run engagement agent" });
+    }
+  }
+);
+

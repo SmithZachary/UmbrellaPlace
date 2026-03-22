@@ -729,6 +729,654 @@
     });
   }
 
+  // ===== SOCIAL MEDIA AGENT =====
+  let socialPosts = [];
+  let socialConfig = {};
+
+  async function loadSocialAgent() {
+    try {
+      // Load config
+      const configDoc = await db.collection("agent-config").doc("social").get();
+      socialConfig = configDoc.exists ? configDoc.data() : {};
+
+      // Populate config form
+      if (socialConfig.topics) document.getElementById("social-config-topics").value = socialConfig.topics;
+      if (socialConfig.tone) document.getElementById("social-config-tone").value = socialConfig.tone;
+      if (socialConfig.lastRun) {
+        const d = new Date(socialConfig.lastRun);
+        document.getElementById("social-last-run").textContent = "Last run: " + d.toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+      }
+
+      // Load platform checkboxes
+      if (socialConfig.platforms) {
+        document.querySelectorAll("#social-config-panel .checkbox-row input[type=checkbox]").forEach(cb => {
+          cb.checked = socialConfig.platforms.includes(cb.value);
+        });
+      }
+
+      // Load posts
+      const snap = await db.collection("social-posts").orderBy("generatedAt", "desc").limit(50).get();
+      socialPosts = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      renderSocialStats();
+      renderSocialTable();
+    } catch (err) {
+      console.error("Load social agent error:", err);
+    }
+  }
+
+  function renderSocialStats() {
+    document.getElementById("social-stat-total").textContent = socialPosts.length;
+    document.getElementById("social-stat-published").textContent = socialPosts.filter(p => p.status === "posted").length;
+    document.getElementById("social-stat-drafts").textContent = socialPosts.filter(p => p.status === "draft" || p.status === "queued").length;
+
+    // Top platform
+    const platCounts = {};
+    socialPosts.forEach(p => { platCounts[p.platform] = (platCounts[p.platform] || 0) + 1; });
+    const topPlat = Object.entries(platCounts).sort((a, b) => b[1] - a[1])[0];
+    document.getElementById("social-stat-platform").textContent = topPlat ? capitalize(topPlat[0]) : "--";
+  }
+
+  function renderSocialTable() {
+    const tbody = document.getElementById("social-posts-table");
+    const empty = document.getElementById("social-posts-empty");
+    const filterPlat = document.getElementById("social-filter-platform").value;
+    const filterStatus = document.getElementById("social-filter-status").value;
+
+    let filtered = socialPosts;
+    if (filterPlat) filtered = filtered.filter(p => p.platform === filterPlat);
+    if (filterStatus) filtered = filtered.filter(p => p.status === filterStatus);
+
+    if (filtered.length === 0) {
+      tbody.innerHTML = "";
+      empty.style.display = "block";
+      return;
+    }
+    empty.style.display = "none";
+
+    tbody.innerHTML = filtered.map(p => {
+      const date = p.generatedAt ? new Date(p.generatedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "--";
+      const preview = (p.content || "").slice(0, 80) + ((p.content || "").length > 80 ? "..." : "");
+      const statusClass = p.status === "posted" ? "badge-closed-won" : p.status === "queued" ? "badge-in-progress" : "badge-new";
+      return `<tr data-id="${p.id}">
+        <td><span class="badge badge-platform-${p.platform}">${capitalize(p.platform)}</span></td>
+        <td>${esc(p.topic || "--")}</td>
+        <td style="max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(preview)}</td>
+        <td><span class="badge ${statusClass}">${capitalize(p.status)}</span></td>
+        <td>${date}</td>
+        <td>
+          <button class="btn btn-secondary btn-sm btn-copy-row" data-content="${esc(p.content || "")}" title="Copy">Copy</button>
+          ${p.status !== "posted" ? `<button class="btn btn-sm btn-mark-posted" data-id="${p.id}" style="background:var(--success);color:#fff;border:none;margin-left:4px" title="Mark posted">Posted</button>` : ""}
+        </td>
+      </tr>`;
+    }).join("");
+
+    tbody.querySelectorAll(".btn-copy-row").forEach(btn => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const row = socialPosts.find(p => p.id === btn.closest("tr").dataset.id);
+        if (row) navigator.clipboard.writeText(row.content).then(() => showToast("Copied to clipboard", "success"));
+      });
+    });
+
+    tbody.querySelectorAll(".btn-mark-posted").forEach(btn => {
+      btn.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        const id = btn.dataset.id;
+        await db.collection("social-posts").doc(id).update({ status: "posted", postedAt: new Date().toISOString() });
+        const post = socialPosts.find(p => p.id === id);
+        if (post) post.status = "posted";
+        renderSocialStats();
+        renderSocialTable();
+        showToast("Marked as posted", "success");
+      });
+    });
+  }
+
+  // Social config toggle
+  document.getElementById("social-config-toggle").addEventListener("click", () => {
+    const panel = document.getElementById("social-config-panel");
+    panel.style.display = panel.style.display === "none" ? "block" : "none";
+  });
+
+  // Save social config
+  document.getElementById("btn-save-social-config").addEventListener("click", async () => {
+    const platforms = [];
+    document.querySelectorAll("#social-config-panel .checkbox-row input:checked").forEach(cb => platforms.push(cb.value));
+    const config = {
+      platforms,
+      topics: document.getElementById("social-config-topics").value.trim(),
+      tone: document.getElementById("social-config-tone").value.trim(),
+    };
+    try {
+      const token = await currentUser.getIdToken();
+      await fetch(`${FUNCTIONS_BASE}/saveAgentConfig`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ agent: "social", config }),
+      });
+      socialConfig = { ...socialConfig, ...config };
+      showToast("Social config saved", "success");
+    } catch (err) {
+      showToast("Failed to save config", "error");
+    }
+  });
+
+  // Run social agent
+  document.getElementById("btn-run-social").addEventListener("click", async () => {
+    const btn = document.getElementById("btn-run-social");
+    btn.disabled = true;
+    btn.textContent = "Running...";
+    try {
+      const token = await currentUser.getIdToken();
+      const res = await fetch(`${FUNCTIONS_BASE}/runSocialAgent`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: "{}",
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed");
+      showToast(`Generated ${data.generated} posts across platforms`, "success");
+      loadSocialAgent();
+    } catch (err) {
+      showToast(err.message || "Failed to run social agent", "error");
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "Run Agent";
+    }
+  });
+
+  // Quick generate single post
+  document.getElementById("btn-generate-post").addEventListener("click", async () => {
+    const platform = document.getElementById("social-platform").value;
+    const topic = document.getElementById("social-topic").value.trim();
+    const tone = document.getElementById("social-tone").value;
+    if (!topic) { showToast("Enter a topic", "error"); return; }
+
+    const btn = document.getElementById("btn-generate-post");
+    btn.disabled = true;
+    btn.textContent = "Generating...";
+    try {
+      const token = await currentUser.getIdToken();
+      const res = await fetch(`${FUNCTIONS_BASE}/generateSocialPost`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ platform, topic, tone }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed");
+      document.getElementById("social-output-text").value = data.content;
+      document.getElementById("social-output").style.display = "block";
+      showToast("Post generated", "success");
+      loadSocialAgent();
+    } catch (err) {
+      showToast("Failed to generate post", "error");
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "Generate Post";
+    }
+  });
+
+  document.getElementById("btn-copy-post").addEventListener("click", () => {
+    navigator.clipboard.writeText(document.getElementById("social-output-text").value);
+    showToast("Copied to clipboard", "success");
+  });
+
+  document.getElementById("btn-regenerate-post").addEventListener("click", () => {
+    document.getElementById("btn-generate-post").click();
+  });
+
+  document.getElementById("btn-save-post").addEventListener("click", async () => {
+    const content = document.getElementById("social-output-text").value;
+    if (!content) return;
+    await db.collection("social-posts").add({
+      platform: document.getElementById("social-platform").value,
+      topic: document.getElementById("social-topic").value,
+      tone: document.getElementById("social-tone").value,
+      content, status: "draft",
+      generatedAt: new Date().toISOString(), generatedBy: "manual",
+    });
+    showToast("Saved as draft", "success");
+    loadSocialAgent();
+  });
+
+  // Social filters
+  document.getElementById("social-filter-platform").addEventListener("change", renderSocialTable);
+  document.getElementById("social-filter-status").addEventListener("change", renderSocialTable);
+
+  // ===== WEB SCOUT AGENT =====
+  let scoutOpps = [];
+  let scoutConfig = {};
+  let lastAnalysis = null;
+  let lastAnalysisOppId = null;
+
+  async function loadScoutAgent() {
+    try {
+      const configDoc = await db.collection("agent-config").doc("scout").get();
+      scoutConfig = configDoc.exists ? configDoc.data() : {};
+
+      if (scoutConfig.keywords) document.getElementById("scout-config-keywords").value = scoutConfig.keywords;
+      if (scoutConfig.subreddits) document.getElementById("scout-config-subreddits").value = scoutConfig.subreddits;
+      if (scoutConfig.minScore) document.getElementById("scout-config-minscore").value = scoutConfig.minScore;
+      if (scoutConfig.period) document.getElementById("scout-config-period").value = scoutConfig.period;
+      if (scoutConfig.lastRun) {
+        const d = new Date(scoutConfig.lastRun);
+        document.getElementById("scout-last-run").textContent = "Last run: " + d.toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+      }
+
+      const snap = await db.collection("scout-opportunities").orderBy("discoveredAt", "desc").limit(50).get();
+      scoutOpps = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      renderScoutStats();
+      renderScoutTable();
+    } catch (err) {
+      console.error("Load scout agent error:", err);
+    }
+  }
+
+  function renderScoutStats() {
+    document.getElementById("scout-stat-total").textContent = scoutOpps.length;
+    document.getElementById("scout-stat-high").textContent = scoutOpps.filter(o => o.score >= 7).length;
+    document.getElementById("scout-stat-engaged").textContent = scoutOpps.filter(o => o.status === "engaged").length;
+    const scored = scoutOpps.filter(o => typeof o.score === "number" && o.score > 0);
+    document.getElementById("scout-stat-avg").textContent = scored.length > 0
+      ? (scored.reduce((s, o) => s + o.score, 0) / scored.length).toFixed(1) : "--";
+  }
+
+  function renderScoutTable() {
+    const tbody = document.getElementById("scout-opps-table");
+    const empty = document.getElementById("scout-opps-empty");
+    const filterStatus = document.getElementById("scout-filter-status").value;
+
+    let filtered = scoutOpps;
+    if (filterStatus) filtered = filtered.filter(o => o.status === filterStatus);
+
+    if (filtered.length === 0) {
+      tbody.innerHTML = "";
+      empty.style.display = "block";
+      return;
+    }
+    empty.style.display = "none";
+
+    tbody.innerHTML = filtered.map(o => {
+      const analysis = o.analysis || {};
+      const summary = analysis.summary || (o.title || "").slice(0, 60) || "--";
+      const scoreClass = o.score >= 7 ? "score-hot" : o.score >= 4 ? "score-warm" : "score-cold";
+      const statusClass = o.status === "engaged" ? "badge-closed-won" : o.status === "dismissed" ? "badge-closed-lost" : "badge-new";
+      const date = o.discoveredAt ? new Date(o.discoveredAt).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "--";
+      const sourceLabel = o.subreddit ? `r/${o.subreddit}` : capitalize(o.source || "manual");
+      return `<tr data-id="${o.id}">
+        <td>${esc(sourceLabel)}</td>
+        <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(summary)}</td>
+        <td>${esc(analysis.loanType || "--")}</td>
+        <td><span class="lead-score ${scoreClass}">${o.score || 0}</span></td>
+        <td><span class="badge ${statusClass}">${capitalize(o.status || "new")}</span></td>
+        <td>${date}</td>
+        <td>
+          ${o.url ? `<a href="${esc(o.url)}" target="_blank" class="btn btn-secondary btn-sm" style="text-decoration:none">View</a>` : ""}
+          ${o.status === "new" ? `<button class="btn btn-sm btn-engage-row" data-id="${o.id}" style="background:var(--accent);color:#fff;border:none;margin-left:4px">Engage</button>` : ""}
+        </td>
+      </tr>`;
+    }).join("");
+
+    tbody.querySelectorAll(".btn-engage-row").forEach(btn => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const opp = scoutOpps.find(o => o.id === btn.dataset.id);
+        if (opp) {
+          // Switch to engagement agent with context pre-filled
+          switchView("agent-engage");
+          document.getElementById("engage-platform").value = opp.source || "reddit";
+          document.getElementById("engage-context").value = opp.description || opp.title || "";
+          lastAnalysisOppId = opp.id;
+        }
+      });
+    });
+  }
+
+  // Scout config toggle
+  document.getElementById("scout-config-toggle").addEventListener("click", () => {
+    const panel = document.getElementById("scout-config-panel");
+    panel.style.display = panel.style.display === "none" ? "block" : "none";
+  });
+
+  // Save scout config
+  document.getElementById("btn-save-scout-config").addEventListener("click", async () => {
+    const config = {
+      keywords: document.getElementById("scout-config-keywords").value.trim(),
+      subreddits: document.getElementById("scout-config-subreddits").value.trim(),
+      minScore: document.getElementById("scout-config-minscore").value,
+      period: document.getElementById("scout-config-period").value,
+    };
+    try {
+      const token = await currentUser.getIdToken();
+      await fetch(`${FUNCTIONS_BASE}/saveAgentConfig`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ agent: "scout", config }),
+      });
+      scoutConfig = { ...scoutConfig, ...config };
+      showToast("Scout config saved", "success");
+    } catch (err) {
+      showToast("Failed to save config", "error");
+    }
+  });
+
+  // Run scout agent
+  document.getElementById("btn-run-scout").addEventListener("click", async () => {
+    const btn = document.getElementById("btn-run-scout");
+    btn.disabled = true;
+    btn.textContent = "Scanning...";
+    try {
+      const token = await currentUser.getIdToken();
+      const res = await fetch(`${FUNCTIONS_BASE}/runScoutAgent`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: "{}",
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed");
+      showToast(`Scanned ${data.scanned} combos, found ${data.found} opportunities`, "success");
+      loadScoutAgent();
+    } catch (err) {
+      showToast(err.message || "Failed to run scout", "error");
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "Run Scan";
+    }
+  });
+
+  // Manual analyze
+  document.getElementById("btn-analyze-opp").addEventListener("click", async () => {
+    const source = document.getElementById("scout-source").value;
+    const url = document.getElementById("scout-url").value.trim();
+    const description = document.getElementById("scout-description").value.trim();
+    if (!description) { showToast("Paste the post content", "error"); return; }
+
+    const btn = document.getElementById("btn-analyze-opp");
+    btn.disabled = true;
+    btn.textContent = "Analyzing...";
+    try {
+      const token = await currentUser.getIdToken();
+      const res = await fetch(`${FUNCTIONS_BASE}/analyzeOpportunity`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ source, url, description }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed");
+
+      lastAnalysis = data.analysis;
+      lastAnalysisOppId = data.opportunityId;
+
+      const scoreClass = data.analysis.score >= 7 ? "score-hot" : data.analysis.score >= 4 ? "score-warm" : "score-cold";
+      document.getElementById("scout-output-score").className = `lead-score ${scoreClass}`;
+      document.getElementById("scout-output-score").textContent = data.analysis.score;
+      document.getElementById("scout-output-type").textContent = data.analysis.loanType || "--";
+      document.getElementById("scout-output-summary").textContent = data.analysis.summary || "--";
+      document.getElementById("scout-output-approach").textContent = data.analysis.approach || "--";
+      document.getElementById("scout-output-signals").innerHTML = (data.analysis.signals || [])
+        .map(s => `<span class="signal-tag">${esc(s)}</span>`).join("");
+      document.getElementById("scout-output").style.display = "block";
+
+      showToast("Analysis complete", "success");
+      loadScoutAgent();
+    } catch (err) {
+      showToast("Failed to analyze", "error");
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "Analyze";
+    }
+  });
+
+  // Engage from scout output
+  document.getElementById("btn-engage-opp").addEventListener("click", () => {
+    const desc = document.getElementById("scout-description").value;
+    switchView("agent-engage");
+    document.getElementById("engage-platform").value = document.getElementById("scout-source").value;
+    document.getElementById("engage-context").value = desc;
+  });
+
+  // Dismiss from scout output
+  document.getElementById("btn-dismiss-opp").addEventListener("click", async () => {
+    if (lastAnalysisOppId) {
+      await db.collection("scout-opportunities").doc(lastAnalysisOppId).update({ status: "dismissed" });
+      document.getElementById("scout-output").style.display = "none";
+      showToast("Opportunity dismissed", "info");
+      loadScoutAgent();
+    }
+  });
+
+  // Scout filter
+  document.getElementById("scout-filter-status").addEventListener("change", renderScoutTable);
+
+  // ===== ENGAGEMENT AGENT =====
+  let engageDrafts = [];
+  let engageConfig = {};
+  let currentDraftId = null;
+
+  async function loadEngagementAgent() {
+    try {
+      const configDoc = await db.collection("agent-config").doc("engagement").get();
+      engageConfig = configDoc.exists ? configDoc.data() : {};
+
+      if (engageConfig.minScore) document.getElementById("engage-config-minscore").value = engageConfig.minScore;
+      if (engageConfig.tone) document.getElementById("engage-config-tone").value = engageConfig.tone;
+      if (engageConfig.lastRun) {
+        const d = new Date(engageConfig.lastRun);
+        document.getElementById("engage-last-run").textContent = "Last run: " + d.toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+      }
+
+      const snap = await db.collection("engagement-drafts").orderBy("createdAt", "desc").limit(50).get();
+      engageDrafts = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      renderEngageStats();
+      renderEngageTable();
+    } catch (err) {
+      console.error("Load engagement agent error:", err);
+    }
+  }
+
+  function renderEngageStats() {
+    document.getElementById("engage-stat-drafts").textContent = engageDrafts.length;
+    document.getElementById("engage-stat-approved").textContent = engageDrafts.filter(d => d.status === "approved").length;
+    document.getElementById("engage-stat-sent").textContent = engageDrafts.filter(d => d.status === "sent").length;
+    document.getElementById("engage-stat-pending").textContent = engageDrafts.filter(d => d.status === "pending").length;
+  }
+
+  function renderEngageTable() {
+    const tbody = document.getElementById("engage-history-table");
+    const empty = document.getElementById("engage-history-empty");
+    const filterStatus = document.getElementById("engage-filter-status").value;
+
+    let filtered = engageDrafts;
+    if (filterStatus) filtered = filtered.filter(d => d.status === filterStatus);
+
+    if (filtered.length === 0) {
+      tbody.innerHTML = "";
+      empty.style.display = "block";
+      return;
+    }
+    empty.style.display = "none";
+
+    tbody.innerHTML = filtered.map(d => {
+      const contextPreview = (d.context || "").slice(0, 60) + ((d.context || "").length > 60 ? "..." : "");
+      const draftPreview = (d.draft || "").slice(0, 60) + ((d.draft || "").length > 60 ? "..." : "");
+      const statusClass = d.status === "sent" ? "badge-closed-won" : d.status === "approved" ? "badge-in-progress" : "badge-new";
+      const date = d.createdAt ? new Date(d.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "--";
+      return `<tr data-id="${d.id}">
+        <td><span class="badge badge-platform-${d.platform}">${capitalize(d.platform || "other")}</span></td>
+        <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(contextPreview)}</td>
+        <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(draftPreview)}</td>
+        <td><span class="badge ${statusClass}">${capitalize(d.status || "pending")}</span></td>
+        <td>${date}</td>
+        <td>
+          <button class="btn btn-secondary btn-sm btn-view-draft" data-id="${d.id}">View</button>
+          ${d.status === "pending" ? `<button class="btn btn-sm btn-approve-row" data-id="${d.id}" style="background:var(--accent);color:#fff;border:none;margin-left:4px">Approve</button>` : ""}
+          ${d.status === "approved" ? `<button class="btn btn-sm btn-sent-row" data-id="${d.id}" style="background:var(--success);color:#fff;border:none;margin-left:4px">Sent</button>` : ""}
+        </td>
+      </tr>`;
+    }).join("");
+
+    tbody.querySelectorAll(".btn-view-draft").forEach(btn => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const draft = engageDrafts.find(d => d.id === btn.dataset.id);
+        if (draft) {
+          document.getElementById("engage-platform").value = draft.platform || "other";
+          document.getElementById("engage-context").value = draft.context || "";
+          document.getElementById("engage-output-text").value = draft.draft || "";
+          document.getElementById("engage-output").style.display = "block";
+          currentDraftId = draft.id;
+        }
+      });
+    });
+
+    tbody.querySelectorAll(".btn-approve-row").forEach(btn => {
+      btn.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        await db.collection("engagement-drafts").doc(btn.dataset.id).update({ status: "approved" });
+        const d = engageDrafts.find(x => x.id === btn.dataset.id);
+        if (d) d.status = "approved";
+        renderEngageStats();
+        renderEngageTable();
+        showToast("Approved", "success");
+      });
+    });
+
+    tbody.querySelectorAll(".btn-sent-row").forEach(btn => {
+      btn.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        await db.collection("engagement-drafts").doc(btn.dataset.id).update({ status: "sent", sentAt: new Date().toISOString() });
+        const d = engageDrafts.find(x => x.id === btn.dataset.id);
+        if (d) d.status = "sent";
+        renderEngageStats();
+        renderEngageTable();
+        showToast("Marked as sent", "success");
+      });
+    });
+  }
+
+  // Engage config toggle
+  document.getElementById("engage-config-toggle").addEventListener("click", () => {
+    const panel = document.getElementById("engage-config-panel");
+    panel.style.display = panel.style.display === "none" ? "block" : "none";
+  });
+
+  // Save engage config
+  document.getElementById("btn-save-engage-config").addEventListener("click", async () => {
+    const config = {
+      minScore: document.getElementById("engage-config-minscore").value,
+      tone: document.getElementById("engage-config-tone").value.trim(),
+    };
+    try {
+      const token = await currentUser.getIdToken();
+      await fetch(`${FUNCTIONS_BASE}/saveAgentConfig`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ agent: "engagement", config }),
+      });
+      engageConfig = { ...engageConfig, ...config };
+      showToast("Engagement config saved", "success");
+    } catch (err) {
+      showToast("Failed to save config", "error");
+    }
+  });
+
+  // Run engagement agent
+  document.getElementById("btn-run-engage").addEventListener("click", async () => {
+    const btn = document.getElementById("btn-run-engage");
+    btn.disabled = true;
+    btn.textContent = "Running...";
+    try {
+      const token = await currentUser.getIdToken();
+      const res = await fetch(`${FUNCTIONS_BASE}/runEngagementAgent`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: "{}",
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed");
+      showToast(data.drafted > 0 ? `Drafted ${data.drafted} responses` : "No new opportunities to engage with", data.drafted > 0 ? "success" : "info");
+      loadEngagementAgent();
+    } catch (err) {
+      showToast(err.message || "Failed to run engagement agent", "error");
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "Run Agent";
+    }
+  });
+
+  // Quick draft
+  document.getElementById("btn-draft-engage").addEventListener("click", async () => {
+    const platform = document.getElementById("engage-platform").value;
+    const context = document.getElementById("engage-context").value.trim();
+    if (!context) { showToast("Paste the conversation context", "error"); return; }
+
+    const btn = document.getElementById("btn-draft-engage");
+    btn.disabled = true;
+    btn.textContent = "Drafting...";
+    try {
+      const token = await currentUser.getIdToken();
+      const res = await fetch(`${FUNCTIONS_BASE}/draftEngagement`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ platform, context, opportunityId: lastAnalysisOppId || "" }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed");
+      document.getElementById("engage-output-text").value = data.draft;
+      document.getElementById("engage-output").style.display = "block";
+      currentDraftId = data.draftId;
+      showToast("Draft ready", "success");
+      loadEngagementAgent();
+    } catch (err) {
+      showToast("Failed to generate draft", "error");
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "Generate Draft";
+    }
+  });
+
+  document.getElementById("btn-copy-engage").addEventListener("click", () => {
+    navigator.clipboard.writeText(document.getElementById("engage-output-text").value);
+    showToast("Copied to clipboard", "success");
+  });
+
+  document.getElementById("btn-redraft-engage").addEventListener("click", () => {
+    document.getElementById("btn-draft-engage").click();
+  });
+
+  document.getElementById("btn-approve-engage").addEventListener("click", async () => {
+    if (currentDraftId) {
+      await db.collection("engagement-drafts").doc(currentDraftId).update({ status: "approved", draft: document.getElementById("engage-output-text").value });
+      showToast("Draft approved", "success");
+      loadEngagementAgent();
+    }
+  });
+
+  document.getElementById("btn-mark-sent-engage").addEventListener("click", async () => {
+    if (currentDraftId) {
+      await db.collection("engagement-drafts").doc(currentDraftId).update({ status: "sent", sentAt: new Date().toISOString(), draft: document.getElementById("engage-output-text").value });
+      showToast("Marked as sent", "success");
+      document.getElementById("engage-output").style.display = "none";
+      loadEngagementAgent();
+    }
+  });
+
+  // Engage filter
+  document.getElementById("engage-filter-status").addEventListener("change", renderEngageTable);
+
+  // ===== LAZY LOAD AGENTS ON VIEW SWITCH =====
+  let socialLoaded = false, scoutLoaded = false, engageLoaded = false;
+
+  const origSwitchView = switchView;
+  switchView = function(viewId) {
+    origSwitchView(viewId);
+    if (viewId === "agent-social" && !socialLoaded) { socialLoaded = true; loadSocialAgent(); }
+    if (viewId === "agent-scout" && !scoutLoaded) { scoutLoaded = true; loadScoutAgent(); }
+    if (viewId === "agent-engage" && !engageLoaded) { engageLoaded = true; loadEngagementAgent(); }
+  };
+
+  function capitalize(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : ""; }
+
   // ===== HELPERS =====
   function parseDate(val) {
     if (!val) return null;
