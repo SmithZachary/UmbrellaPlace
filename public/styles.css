@@ -1806,6 +1806,122 @@ footer {
   }
 }
 
+/* ========== FLIP QUALIFIER ========== */
+.flip-qualifier {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 2rem;
+  margin-top: 1.5rem;
+}
+
+.flip-qualifier-inputs {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.5rem;
+}
+
+.flip-input-group label {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 0.5rem;
+}
+
+.input-prefix-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.input-prefix {
+  position: absolute;
+  left: 0.85rem;
+  font-size: 0.95rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+  pointer-events: none;
+}
+
+.input-prefix-wrap input {
+  width: 100%;
+  padding: 0.7rem 0.85rem 0.7rem 1.75rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 1rem;
+  font-family: inherit;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  transition: border-color 0.2s;
+}
+
+.input-prefix-wrap input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+}
+
+.flip-qualifier-results {
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border);
+}
+
+.fq-result-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.6rem 0;
+  font-size: 0.95rem;
+}
+
+.fq-result-row span {
+  color: var(--text-secondary);
+}
+
+.fq-result-row strong {
+  color: var(--text-primary);
+  font-size: 1.05rem;
+}
+
+.fq-verdict {
+  margin-top: 1rem;
+  padding: 1rem 1.25rem;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.fq-verdict.fq-pass {
+  background: rgba(16, 185, 129, 0.1);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  color: #065f46;
+}
+
+.fq-verdict.fq-caution {
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.25);
+  color: #92400e;
+}
+
+.fq-verdict.fq-fail {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  color: #991b1b;
+}
+
+@media (max-width: 768px) {
+  .flip-qualifier-inputs {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+
+  .flip-qualifier {
+    padding: 1.25rem;
+  }
+}
+
 /* ========== PRIVACY PAGE ========== */
 .privacy-body {
   max-width: 760px;

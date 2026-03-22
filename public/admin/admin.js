@@ -22,6 +22,15 @@
     "5m-plus": "$5M+",
   };
 
+  // Format dollar amounts — handles both old slugs and new raw numbers
+  function fmtDollar(val) {
+    if (!val) return "--";
+    if (loanAmountLabels[val]) return loanAmountLabels[val];
+    const num = parseInt(val, 10);
+    if (!isNaN(num)) return "$" + num.toLocaleString("en-US");
+    return val;
+  }
+
   const timelineLabels = {
     asap: "ASAP (under 2 weeks)",
     "30-days": "Within 30 days",
@@ -269,7 +278,7 @@
     tbody.innerHTML = leads.map((l) => {
       const name = [l.firstName, l.lastName].filter(Boolean).join(" ") || "Unknown";
       const type = loanTypeLabels[l.loanType] || l.loanType || "--";
-      const amount = loanAmountLabels[l.loanAmount] || l.loanAmount || "--";
+      const amount = fmtDollar(l.loanAmount);
       const status = l.status || "new";
       const date = parseDate(l.submittedAt);
       const dateStr = date ? date.toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "--";
@@ -353,10 +362,11 @@
     document.getElementById("detail-loantype").textContent = loanTypeLabels[lead.loanType] || lead.loanType || "--";
     document.getElementById("detail-propertytype").textContent = lead.propertyType || "--";
     document.getElementById("detail-loanpurpose").textContent = lead.loanPurpose || "--";
-    document.getElementById("detail-amount").textContent = loanAmountLabels[lead.loanAmount] || lead.loanAmount || "--";
+    document.getElementById("detail-amount").textContent = fmtDollar(lead.loanAmount);
     document.getElementById("detail-state").textContent = lead.propertyState || "--";
     document.getElementById("detail-credit").textContent = lead.creditScore || "--";
     document.getElementById("detail-timeline").textContent = timelineLabels[lead.timeline] || lead.timeline || "--";
+    document.getElementById("detail-arv").textContent = fmtDollar(lead.afterRepairValue);
 
     const date = parseDate(lead.submittedAt);
     document.getElementById("detail-date").textContent = date
@@ -699,7 +709,7 @@
     tbody.innerHTML = topLeads.map((l) => {
       const name = [l.firstName, l.lastName].filter(Boolean).join(" ") || "Unknown";
       const type = loanTypeLabels[l.loanType] || l.loanType || "--";
-      const amount = loanAmountLabels[l.loanAmount] || l.loanAmount || "--";
+      const amount = fmtDollar(l.loanAmount);
       const score = l.leadScore;
       const scoreClass = score >= 7 ? "score-hot" : score >= 4 ? "score-warm" : "score-cold";
       const status = l.status || "new";

@@ -213,8 +213,41 @@ if (loanTypeSelect) {
       propertyTypeSelect.required = false;
       loanPurposeSelect.required = false;
     }
+
+    // Show ARV field only for fix & flip
+    const arvGroup = document.getElementById("arv-group");
+    if (arvGroup) {
+      arvGroup.hidden = selected !== "fix-flip";
+    }
   });
 }
+
+// Currency input formatting — strip non-digits, format with commas, prefix $
+function setupCurrencyInput(el) {
+  if (!el) return;
+  el.addEventListener("input", function () {
+    const raw = this.value.replace(/[^0-9]/g, "");
+    if (raw === "") {
+      this.value = "";
+      return;
+    }
+    this.value = "$" + parseInt(raw, 10).toLocaleString("en-US");
+  });
+  // Also handle paste
+  el.addEventListener("paste", function () {
+    setTimeout(() => {
+      const raw = this.value.replace(/[^0-9]/g, "");
+      if (raw === "") {
+        this.value = "";
+        return;
+      }
+      this.value = "$" + parseInt(raw, 10).toLocaleString("en-US");
+    }, 0);
+  });
+}
+
+setupCurrencyInput(document.getElementById("loanAmount"));
+setupCurrencyInput(document.getElementById("afterRepairValue"));
 
 // Intake form handling
 const form = document.getElementById("intake-form");
@@ -262,6 +295,10 @@ if (form) {
     // Collect form data
     const formData = new FormData(form);
     const data = Object.fromEntries(formData.entries());
+
+    // Clean currency fields — store raw numeric string
+    if (data.loanAmount) data.loanAmount = data.loanAmount.replace(/[^0-9]/g, "");
+    if (data.afterRepairValue) data.afterRepairValue = data.afterRepairValue.replace(/[^0-9]/g, "");
 
     // Disable submit button while saving
     const submitBtn = form.querySelector('button[type="submit"]');

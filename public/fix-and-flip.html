@@ -155,6 +155,62 @@
 
     <section class="loan-page-section">
       <div class="loan-page-body animate">
+        <h2>Quick Deal Qualifier</h2>
+        <p>Plug in your numbers to see if your flip pencils out. The 70% rule says your total cost (purchase + rehab) should not exceed 70% of the after repair value.</p>
+        <div class="flip-qualifier">
+          <div class="flip-qualifier-inputs">
+            <div class="flip-input-group">
+              <label for="fq-purchase">Purchase Price</label>
+              <div class="input-prefix-wrap">
+                <span class="input-prefix">$</span>
+                <input type="number" id="fq-purchase" placeholder="200,000" min="0" />
+              </div>
+            </div>
+            <div class="flip-input-group">
+              <label for="fq-rehab">Rehab Budget</label>
+              <div class="input-prefix-wrap">
+                <span class="input-prefix">$</span>
+                <input type="number" id="fq-rehab" placeholder="50,000" min="0" />
+              </div>
+            </div>
+            <div class="flip-input-group">
+              <label for="fq-arv">After Repair Value (ARV)</label>
+              <div class="input-prefix-wrap">
+                <span class="input-prefix">$</span>
+                <input type="number" id="fq-arv" placeholder="350,000" min="0" />
+              </div>
+            </div>
+          </div>
+          <div class="flip-qualifier-results" id="fq-results" style="display:none">
+            <div class="fq-result-row">
+              <span>Total Cost</span>
+              <strong id="fq-total-cost">$0</strong>
+            </div>
+            <div class="fq-result-row">
+              <span>Cost-to-ARV Ratio</span>
+              <strong id="fq-ratio">0%</strong>
+            </div>
+            <div class="fq-result-row">
+              <span>Estimated Gross Profit</span>
+              <strong id="fq-profit">$0</strong>
+            </div>
+            <div class="fq-result-row">
+              <span>Max Loan (90% LTC)</span>
+              <strong id="fq-max-loan">$0</strong>
+            </div>
+            <div class="fq-result-row">
+              <span>Cash to Close (est.)</span>
+              <strong id="fq-cash">$0</strong>
+            </div>
+            <div class="fq-verdict" id="fq-verdict"></div>
+          </div>
+        </div>
+        <p style="font-size:0.85rem;color:var(--text-secondary);margin-top:0.75rem">This is a quick estimate. Actual terms depend on your lender, experience, and deal specifics. <a href="calculator.html" style="color:var(--accent);text-decoration:underline">Use our full calculator</a> for detailed analysis.</p>
+      </div>
+    </section>
+
+    <section class="loan-page-section">
+      <div class="loan-page-body animate">
         <h2>How the Draw Process Works</h2>
         <p>Rehab funds are held in escrow and released in draws as construction milestones are completed. Here's a typical draw process:</p>
         <div class="loan-features-grid">
@@ -236,5 +292,58 @@
     </footer>
     <script src="./script.js"></script>
     <script src="./chat-widget.js" defer></script>
+    <script>
+    (function() {
+      const purchase = document.getElementById('fq-purchase');
+      const rehab = document.getElementById('fq-rehab');
+      const arv = document.getElementById('fq-arv');
+      const results = document.getElementById('fq-results');
+
+      function fmt(n) {
+        return '$' + Math.round(n).toLocaleString('en-US');
+      }
+
+      function calc() {
+        const p = parseFloat(purchase.value) || 0;
+        const r = parseFloat(rehab.value) || 0;
+        const a = parseFloat(arv.value) || 0;
+
+        if (p <= 0 || a <= 0) {
+          results.style.display = 'none';
+          return;
+        }
+
+        const totalCost = p + r;
+        const ratio = (totalCost / a) * 100;
+        const profit = a - totalCost;
+        const maxLoan = totalCost * 0.9;
+        const cashToClose = totalCost - maxLoan;
+
+        document.getElementById('fq-total-cost').textContent = fmt(totalCost);
+        document.getElementById('fq-ratio').textContent = ratio.toFixed(1) + '%';
+        document.getElementById('fq-profit').textContent = fmt(profit);
+        document.getElementById('fq-max-loan').textContent = fmt(maxLoan);
+        document.getElementById('fq-cash').textContent = fmt(cashToClose);
+
+        const verdict = document.getElementById('fq-verdict');
+        if (ratio <= 70) {
+          verdict.className = 'fq-verdict fq-pass';
+          verdict.innerHTML = '<strong>Looks good.</strong> Total cost is ' + ratio.toFixed(1) + '% of ARV — within the 70% rule. Strong deal for most lenders.';
+        } else if (ratio <= 75) {
+          verdict.className = 'fq-verdict fq-caution';
+          verdict.innerHTML = '<strong>Borderline.</strong> Total cost is ' + ratio.toFixed(1) + '% of ARV — slightly above the 70% rule. Some lenders will still look at this, but margins are tight.';
+        } else {
+          verdict.className = 'fq-verdict fq-fail';
+          verdict.innerHTML = '<strong>Tight margins.</strong> Total cost is ' + ratio.toFixed(1) + '% of ARV — above the 70% rule. You may need to negotiate a lower purchase price or reduce rehab scope.';
+        }
+
+        results.style.display = 'block';
+      }
+
+      purchase.addEventListener('input', calc);
+      rehab.addEventListener('input', calc);
+      arv.addEventListener('input', calc);
+    })();
+    </script>
   </body>
 </html>

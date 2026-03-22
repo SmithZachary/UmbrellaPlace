@@ -485,18 +485,14 @@
               </div>
             </div>
           </div>
+          <div class="form-group" id="arv-group" hidden>
+            <label for="afterRepairValue">After Repair Value (ARV)</label>
+            <input type="text" id="afterRepairValue" name="afterRepairValue" inputmode="numeric" placeholder="e.g. 350,000" autocomplete="off" />
+          </div>
           <div class="form-row">
             <div class="form-group">
               <label for="loanAmount">Estimated Loan Amount</label>
-              <select id="loanAmount" name="loanAmount">
-                <option value="" disabled selected>Select a range</option>
-                <option value="under-250k">Under $250K</option>
-                <option value="250k-500k">$250K &ndash; $500K</option>
-                <option value="500k-1m">$500K &ndash; $1M</option>
-                <option value="1m-3m">$1M &ndash; $3M</option>
-                <option value="3m-5m">$3M &ndash; $5M</option>
-                <option value="5m-plus">$5M+</option>
-              </select>
+              <input type="text" id="loanAmount" name="loanAmount" inputmode="numeric" placeholder="e.g. 500,000" autocomplete="off" />
             </div>
             <div class="form-group">
               <label for="propertyState">Property State</label>

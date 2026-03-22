@@ -81,9 +81,17 @@ exports.onNewInquiry = onDocumentCreated(
       "5m-plus": "$5M+",
     };
 
+    function fmtDollar(val) {
+      if (!val) return "—";
+      if (loanAmountLabels[val]) return loanAmountLabels[val];
+      const num = parseInt(val, 10);
+      if (!isNaN(num)) return "$" + num.toLocaleString("en-US");
+      return val;
+    }
+
     const name = [data.firstName, data.lastName].filter(Boolean).join(" ");
     const loanType = loanTypeLabels[data.loanType] || data.loanType || "—";
-    const loanAmount = loanAmountLabels[data.loanAmount] || data.loanAmount || "—";
+    const loanAmount = fmtDollar(data.loanAmount);
     const timeline = timelineLabels[data.timeline] || data.timeline || "—";
     const submittedDate = data.submittedAt
       ? new Date(data.submittedAt).toLocaleString("en-US", { timeZone: "America/New_York" })
@@ -121,6 +129,7 @@ exports.onNewInquiry = onDocumentCreated(
             <tr><td style="padding: 6px 0; color: #5a6478;">Property State</td><td style="padding: 6px 0;">${escHtml(data.propertyState) || "—"}</td></tr>
             <tr><td style="padding: 6px 0; color: #5a6478;">Credit Score</td><td style="padding: 6px 0;">${escHtml(data.creditScore) || "—"}</td></tr>
             <tr><td style="padding: 6px 0; color: #5a6478;">Timeline</td><td style="padding: 6px 0;">${escHtml(timeline)}</td></tr>
+            ${data.afterRepairValue ? `<tr><td style="padding: 6px 0; color: #5a6478;">After Repair Value</td><td style="padding: 6px 0;">${escHtml(fmtDollar(data.afterRepairValue))}</td></tr>` : ""}
           </table>
           <hr style="border: none; border-top: 1px solid #e2e6ed; margin: 16px 0;">
           <p style="font-size: 12px; color: #8a94a6; margin: 0;">
@@ -380,7 +389,7 @@ exports.submitInquiry = onRequest(
 
     // Validate field lengths to prevent abuse
     const maxLen = 500;
-    const stringFields = ["firstName", "lastName", "email", "phone", "loanType", "propertyType", "loanPurpose", "loanAmount", "propertyState", "creditScore", "timeline"];
+    const stringFields = ["firstName", "lastName", "email", "phone", "loanType", "propertyType", "loanPurpose", "loanAmount", "propertyState", "creditScore", "timeline", "afterRepairValue"];
     for (const field of stringFields) {
       if (data[field] && (typeof data[field] !== "string" || data[field].length > maxLen)) {
         res.status(400).json({ error: `Invalid field: ${field}` });
@@ -426,6 +435,7 @@ exports.submitInquiry = onRequest(
       propertyState: (data.propertyState || "").trim(),
       creditScore: (data.creditScore || "").trim(),
       timeline: (data.timeline || "").trim(),
+      afterRepairValue: (data.afterRepairValue || "").trim(),
       submittedAt: new Date().toISOString(),
       status: "new",
     };
