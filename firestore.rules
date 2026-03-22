@@ -1,10 +1,25 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Allow anyone to create an inquiry (form submission)
+    // Admin UIDs — only these users can read/update data
+    function isAdmin() {
+      return request.auth != null && (
+        request.auth.uid == "xUWUFpdXeDSJxZIAgVwy5F5eyEs1" ||
+        request.auth.uid == "ut9PhvrCWNS8NvxqOAy5mWirCfB2"
+      );
+    }
+
+    // Inquiries created server-side via submitInquiry function (admin SDK bypasses rules)
+    // Only admins can read and update from client
     match /inquiries/{docId} {
-      allow create: if true;
-      allow read, update, delete: if false;
+      allow create: if false;
+      allow read, update: if isAdmin();
+      allow delete: if false;
+    }
+
+    // Email thread subcollection — admins only
+    match /inquiries/{docId}/emails/{emailId} {
+      allow read, write: if isAdmin();
     }
 
     // Deny everything else by default

@@ -6,6 +6,8 @@ document.addEventListener("DOMContentLoaded", function () {
   var elPurchasePrice = document.getElementById("calc-purchase-price");
   var elRehabBudget = document.getElementById("calc-rehab-budget");
   var elArv = document.getElementById("calc-arv");
+  var elHoldingCosts = document.getElementById("calc-holding-costs");
+  var elMonthlyRent = document.getElementById("calc-monthly-rent");
   var elLoanAmount = document.getElementById("calc-loan-amount");
   var elInterestRate = document.getElementById("calc-interest-rate");
   var elLoanTerm = document.getElementById("calc-loan-term");
@@ -16,6 +18,8 @@ document.addEventListener("DOMContentLoaded", function () {
   // ---------------------------------------------------------------------------
   var elRehabGroup = document.getElementById("rehab-group");
   var elArvGroup = document.getElementById("arv-group");
+  var elHoldingGroup = document.getElementById("holding-group");
+  var elRentGroup = document.getElementById("rent-group");
 
   // ---------------------------------------------------------------------------
   // 3. DOM references - result elements
@@ -31,6 +35,9 @@ document.addEventListener("DOMContentLoaded", function () {
   var elResultOrigination = document.getElementById("result-origination");
   var elResultTotalCost = document.getElementById("result-total-cost");
   var elResultProfit = document.getElementById("result-profit");
+  var elResultCashToClose = document.getElementById("result-cash-to-close");
+  var elResultDscr = document.getElementById("result-dscr");
+  var elResultDscrCard = document.getElementById("result-dscr-card");
   var elProfitSection = document.getElementById("profit-section");
   var elTermHint = document.getElementById("term-hint");
   var elRehabLabel = document.getElementById("rehab-label");
@@ -47,6 +54,8 @@ document.addEventListener("DOMContentLoaded", function () {
       showRehab: false,
       showArv: false,
       showProfit: false,
+      showHolding: false,
+      showRent: false,
       defaultTerm: 12,
       defaultRate: 10.0,
       defaultPoints: 2.0,
@@ -58,6 +67,8 @@ document.addEventListener("DOMContentLoaded", function () {
       showRehab: true,
       showArv: true,
       showProfit: true,
+      showHolding: true,
+      showRent: false,
       defaultTerm: 12,
       defaultRate: 11.0,
       defaultPoints: 2.0,
@@ -69,11 +80,12 @@ document.addEventListener("DOMContentLoaded", function () {
       showRehab: true,
       showArv: true,
       showProfit: false,
+      showHolding: false,
+      showRent: false,
       defaultTerm: 18,
       defaultRate: 11.5,
       defaultPoints: 2.0,
       termHint: "Typical: 12 - 24 months",
-      // FIX 4: Relabel purchase price for construction to reflect land cost
       purchasePriceLabel: "Land / Lot Cost ($)",
     },
     dscr: {
@@ -81,6 +93,8 @@ document.addEventListener("DOMContentLoaded", function () {
       showRehab: false,
       showArv: false,
       showProfit: false,
+      showHolding: false,
+      showRent: true,
       amortizing: true,
       defaultTerm: 360,
       defaultRate: 8.0,
@@ -148,6 +162,8 @@ document.addEventListener("DOMContentLoaded", function () {
   setupCurrencyInput(elPurchasePrice);
   setupCurrencyInput(elRehabBudget);
   setupCurrencyInput(elArv);
+  setupCurrencyInput(elHoldingCosts);
+  setupCurrencyInput(elMonthlyRent);
   setupCurrencyInput(elLoanAmount);
 
   // ---------------------------------------------------------------------------
@@ -164,6 +180,12 @@ document.addEventListener("DOMContentLoaded", function () {
     }
     if (elArvGroup) {
       elArvGroup.hidden = !config.showArv;
+    }
+    if (elHoldingGroup) {
+      elHoldingGroup.hidden = !config.showHolding;
+    }
+    if (elRentGroup) {
+      elRentGroup.hidden = !config.showRent;
     }
 
     // Update rehab label text
@@ -188,6 +210,9 @@ document.addEventListener("DOMContentLoaded", function () {
     }
     if (elResultArltvCard) {
       elResultArltvCard.hidden = !config.showArv;
+    }
+    if (elResultDscrCard) {
+      elResultDscrCard.hidden = !config.showRent;
     }
     if (elProfitSection) {
       elProfitSection.hidden = !config.showProfit;
@@ -232,6 +257,8 @@ document.addEventListener("DOMContentLoaded", function () {
     elPurchasePrice,
     elRehabBudget,
     elArv,
+    elHoldingCosts,
+    elMonthlyRent,
     elLoanAmount,
     elInterestRate,
     elLoanTerm,
@@ -255,6 +282,10 @@ document.addEventListener("DOMContentLoaded", function () {
     );
     var rehab = parseCurrency(elRehabBudget ? elRehabBudget.value : "");
     var arv = parseCurrency(elArv ? elArv.value : "");
+    var holdingPerMonth = parseCurrency(
+      elHoldingCosts ? elHoldingCosts.value : "",
+    );
+    var monthlyRent = parseCurrency(elMonthlyRent ? elMonthlyRent.value : "");
     var loan = parseCurrency(elLoanAmount ? elLoanAmount.value : "");
     var rate = parseFloat(elInterestRate ? elInterestRate.value : "") || 0;
     var term = parseFloat(elLoanTerm ? elLoanTerm.value : "") || 0;
@@ -397,6 +428,50 @@ document.addEventListener("DOMContentLoaded", function () {
       }
     }
 
+    // --- Cash to close ---
+    // Down payment (purchase price minus loan, floored at 0) + origination fee
+    if (elResultCashToClose) {
+      if (loan > 0 && purchasePrice > 0) {
+        var downPayment = Math.max(purchasePrice - loan, 0);
+        var cashToClose = downPayment + origFee;
+        elResultCashToClose.textContent = formatCurrency(cashToClose);
+
+        var ctcCard = elResultCashToClose.closest(".result-card");
+        if (ctcCard) {
+          var existingCtcNote = ctcCard.querySelector(".result-note");
+          if (!existingCtcNote) {
+            var ctcNote = document.createElement("span");
+            ctcNote.className = "result-note";
+            ctcNote.textContent =
+              "Down payment + origination fee. Excludes closing costs and escrow.";
+            ctcCard.appendChild(ctcNote);
+          }
+        }
+      } else {
+        elResultCashToClose.textContent = "--";
+      }
+    }
+
+    // --- DSCR ratio (DSCR loans only) ---
+    if (elResultDscr) {
+      if (elResultDscrCard && !elResultDscrCard.hidden) {
+        elResultDscr.classList.remove("result-warning", "result-danger");
+        if (monthlyRent > 0 && monthlyPayment > 0) {
+          var dscr = monthlyRent / monthlyPayment;
+          elResultDscr.textContent = dscr.toFixed(2) + "x";
+          if (dscr < 1.0) {
+            elResultDscr.classList.add("result-danger");
+          } else if (dscr < 1.25) {
+            elResultDscr.classList.add("result-warning");
+          }
+        } else {
+          elResultDscr.textContent = "--";
+        }
+      } else {
+        elResultDscr.textContent = "--";
+      }
+    }
+
     // --- Estimated profit (fix-flip only) ---
     // FIX 2: Account for estimated selling costs (agent commissions, closing
     // costs, transfer taxes) which are typically 7-8% of ARV, and add a
@@ -407,8 +482,15 @@ document.addEventListener("DOMContentLoaded", function () {
         if (arv > 0 && purchasePrice > 0 && totalLoanCost > 0) {
           // Estimated selling costs: agent commissions + closing costs ~7% of ARV
           var sellingCosts = arv * 0.07;
+          // Total holding costs over the loan term
+          var totalHoldingCosts = holdingPerMonth * term;
           var profit =
-            arv - purchasePrice - rehab - totalLoanCost - sellingCosts;
+            arv -
+            purchasePrice -
+            rehab -
+            totalLoanCost -
+            sellingCosts -
+            totalHoldingCosts;
           elResultProfit.textContent = formatCurrency(profit);
           if (profit < 0) {
             elResultProfit.classList.add("result-negative");
@@ -418,12 +500,17 @@ document.addEventListener("DOMContentLoaded", function () {
           var profitCard = elResultProfit.closest(".result-card");
           if (profitCard) {
             var existingProfitNote = profitCard.querySelector(".result-note");
+            var noteText =
+              totalHoldingCosts > 0
+                ? "Includes ~7% selling costs and holding costs."
+                : "Includes ~7% selling costs. Enter holding costs above for a more accurate estimate.";
             if (!existingProfitNote) {
               var profitNote = document.createElement("span");
               profitNote.className = "result-note";
-              profitNote.textContent =
-                "Includes ~7% selling costs. Excludes holding costs (taxes, insurance, utilities).";
+              profitNote.textContent = noteText;
               profitCard.appendChild(profitNote);
+            } else {
+              existingProfitNote.textContent = noteText;
             }
           }
         } else {

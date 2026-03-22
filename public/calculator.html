@@ -38,9 +38,16 @@
         <span>Umbrella Place</span>
       </a>
       <div class="nav-links">
-        <a href="index.html#services">Services</a>
-        <a href="index.html#why-us">Why Us</a>
-        <a href="index.html#how-it-works">Process</a>
+        <div class="nav-dropdown">
+          <a href="index.html#services" class="nav-dropdown-toggle">Services <span class="dropdown-arrow">&#9662;</span></a>
+          <div class="nav-dropdown-menu">
+            <a href="bridge-loans.html">Bridge Loans</a>
+            <a href="fix-and-flip.html">Fix &amp; Flip</a>
+            <a href="new-construction.html">New Construction</a>
+            <a href="dscr-loans.html">DSCR Rental Loans</a>
+          </div>
+        </div>
+        <a href="calculator.html" class="nav-active">Calculator</a>
         <a href="index.html#about">About</a>
         <a href="index.html#contact" class="nav-cta">Get Started</a>
       </div>
@@ -83,6 +90,18 @@
           <div class="form-group calc-conditional" id="arv-group" hidden>
             <label for="calc-arv">After Repair Value (ARV) ($)</label>
             <input type="text" id="calc-arv" inputmode="numeric" placeholder="e.g. 500,000" />
+          </div>
+
+          <div class="form-group calc-conditional" id="holding-group" hidden>
+            <label for="calc-holding-costs">Est. Monthly Holding Costs ($)</label>
+            <input type="text" id="calc-holding-costs" inputmode="numeric" placeholder="e.g. 1,500" />
+            <span class="field-hint">Taxes, insurance, utilities, HOA, etc.</span>
+          </div>
+
+          <div class="form-group calc-conditional" id="rent-group" hidden>
+            <label for="calc-monthly-rent">Monthly Rental Income ($)</label>
+            <input type="text" id="calc-monthly-rent" inputmode="numeric" placeholder="e.g. 2,500" />
+            <span class="field-hint">Gross monthly rent for DSCR calculation</span>
           </div>
 
           <div class="form-group">
@@ -129,6 +148,10 @@
                 <span class="result-label">After Repair LTV</span>
                 <span class="result-value" id="result-arltv">--</span>
               </div>
+              <div class="result-card" id="result-dscr-card" hidden>
+                <span class="result-label">DSCR Ratio</span>
+                <span class="result-value" id="result-dscr">--</span>
+              </div>
             </div>
           </div>
 
@@ -150,6 +173,10 @@
               <div class="result-card highlight">
                 <span class="result-label">Total Loan Cost</span>
                 <span class="result-value" id="result-total-cost">--</span>
+              </div>
+              <div class="result-card highlight">
+                <span class="result-label">Cash to Close</span>
+                <span class="result-value" id="result-cash-to-close">--</span>
               </div>
             </div>
           </div>
@@ -210,6 +237,21 @@
       </div>
     </section>
 
+    <section id="free-resources">
+      <div class="section-header animate">
+        <h2>Free Resources</h2>
+        <p>Tools to help you underwrite deals faster and more accurately.</p>
+      </div>
+      <div class="resources-grid animate">
+        <a href="https://docs.google.com/spreadsheets/d/1OKMMIY3Cdiyk74bgOcJUQMOlQka9t_iv0OdzXaddbls/edit?usp=sharing" target="_blank" rel="noopener" class="resource-card">
+          <span class="resource-icon">&#128200;</span>
+          <h3>House Flipping Spreadsheet</h3>
+          <p>Analyze rehab costs, holding costs, and projected profit on any fix &amp; flip deal. Plug in your numbers and see if the deal pencils out.</p>
+          <span class="resource-link">Open in Google Sheets &rarr;</span>
+        </a>
+      </div>
+    </section>
+
     <section id="calculator-cta">
       <div class="section-header animate">
         <h2>Ready to Move Forward?</h2>
@@ -229,9 +271,9 @@
         <div class="footer-col">
           <h4>Quick Links</h4>
           <a href="index.html#services">Services</a>
-          <a href="index.html#why-us">Why Us</a>
-          <a href="index.html#how-it-works">Process</a>
+          <a href="calculator.html">Calculator</a>
           <a href="index.html#about">About</a>
+          <a href="privacy.html">Privacy Policy</a>
         </div>
         <div class="footer-col">
           <h4>Contact</h4>

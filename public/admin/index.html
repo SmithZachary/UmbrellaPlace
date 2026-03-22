@@ -1,0 +1,467 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard | Umbrella Place Admin</title>
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="icon" type="image/svg+xml" href="../favicon.svg" />
+  <link rel="stylesheet" href="admin.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <!-- Loading screen -->
+  <div class="page-loading" id="page-loading">
+    <div class="loading-spinner" style="width:40px;height:40px;border-width:3px"></div>
+    <span>Loading dashboard...</span>
+  </div>
+
+  <!-- Dashboard (hidden until auth) -->
+  <div class="dashboard" id="dashboard" style="display:none">
+
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-logo">
+        <img src="../assets/logo.svg" alt="Umbrella Place" />
+        <span>Admin</span>
+      </div>
+
+      <nav class="sidebar-nav">
+        <div class="nav-section">
+          <div class="nav-section-title">Main</div>
+          <button class="nav-item active" data-view="overview">
+            <span class="nav-icon">&#128202;</span> Overview
+          </button>
+          <button class="nav-item" data-view="leads">
+            <span class="nav-icon">&#128101;</span> Leads
+            <span class="nav-badge" id="new-leads-badge" style="display:none">0</span>
+          </button>
+        </div>
+
+        <div class="nav-section">
+          <div class="nav-section-title">AI Agents</div>
+          <button class="nav-item" data-view="agent-inbound">
+            <span class="nav-icon">&#9889;</span> Inbound Lead
+          </button>
+          <button class="nav-item" data-view="agent-social">
+            <span class="nav-icon">&#128227;</span> Social Media
+          </button>
+          <button class="nav-item" data-view="agent-scout">
+            <span class="nav-icon">&#128269;</span> Web Scout
+          </button>
+          <button class="nav-item" data-view="agent-engage">
+            <span class="nav-icon">&#128172;</span> Engagement
+          </button>
+        </div>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="sidebar-user">
+          <div class="sidebar-user-avatar" id="user-avatar">--</div>
+          <div class="sidebar-user-info">
+            <div class="sidebar-user-name" id="user-name">Loading...</div>
+            <div class="sidebar-user-email" id="user-email"></div>
+          </div>
+          <button class="btn-logout" id="btn-logout">Logout</button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main -->
+    <div class="main-content">
+      <div class="topbar">
+        <div style="display:flex;align-items:center;gap:0.75rem">
+          <button class="mobile-sidebar-toggle" id="mobile-toggle">&#9776;</button>
+          <span class="topbar-title" id="topbar-title">Overview</span>
+        </div>
+        <div class="topbar-actions">
+          <span class="topbar-date" id="topbar-date"></span>
+        </div>
+      </div>
+
+      <div class="content-area">
+
+        <!-- ===== OVERVIEW VIEW ===== -->
+        <div class="view active" id="view-overview">
+          <div class="stats-grid">
+            <div class="stat-card">
+              <div class="stat-card-label">Total Leads</div>
+              <div class="stat-card-value" id="stat-total">--</div>
+              <div class="stat-card-sub" id="stat-total-sub">All time</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-card-label">This Month</div>
+              <div class="stat-card-value" id="stat-month">--</div>
+              <div class="stat-card-sub" id="stat-month-sub"></div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-card-label">New / Uncontacted</div>
+              <div class="stat-card-value" id="stat-new">--</div>
+              <div class="stat-card-sub">Needs attention</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-card-label">Closed Won</div>
+              <div class="stat-card-value" id="stat-won">--</div>
+              <div class="stat-card-sub" id="stat-won-sub"></div>
+            </div>
+          </div>
+
+          <div class="charts-grid">
+            <div class="chart-card">
+              <h3>Leads Over Time</h3>
+              <div class="chart-container">
+                <canvas id="chart-leads-time"></canvas>
+              </div>
+            </div>
+            <div class="chart-card">
+              <h3>By Loan Type</h3>
+              <div class="chart-container">
+                <canvas id="chart-loan-type"></canvas>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <h3>Recent Leads</h3>
+              <button class="btn btn-sm btn-secondary" data-view="leads">View All</button>
+            </div>
+            <div class="card-body">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Loan Type</th>
+                    <th>Amount</th>
+                    <th>Status</th>
+                    <th>Date</th>
+                  </tr>
+                </thead>
+                <tbody id="recent-leads-table"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- ===== LEADS VIEW ===== -->
+        <div class="view" id="view-leads">
+          <div class="card">
+            <div class="card-header">
+              <h3>All Leads</h3>
+              <span class="text-muted" id="leads-count" style="font-size:0.85rem;color:var(--text-muted)"></span>
+            </div>
+            <div class="filters-row">
+              <select class="filter-select" id="filter-status">
+                <option value="">All Statuses</option>
+                <option value="new">New</option>
+                <option value="contacted">Contacted</option>
+                <option value="in-progress">In Progress</option>
+                <option value="closed-won">Closed Won</option>
+                <option value="closed-lost">Closed Lost</option>
+              </select>
+              <select class="filter-select" id="filter-loan-type">
+                <option value="">All Loan Types</option>
+                <option value="bridge">Bridge Loan</option>
+                <option value="fix-flip">Fix & Flip</option>
+                <option value="construction">New Construction</option>
+                <option value="dscr">DSCR Rental</option>
+                <option value="other">Other</option>
+              </select>
+              <input type="text" class="filter-input" id="filter-search" placeholder="Search by name or email..." />
+            </div>
+            <div class="card-body">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Phone</th>
+                    <th>Loan Type</th>
+                    <th>Amount</th>
+                    <th>State</th>
+                    <th>Status</th>
+                    <th>Date</th>
+                  </tr>
+                </thead>
+                <tbody id="all-leads-table"></tbody>
+              </table>
+              <div class="empty-state" id="leads-empty" style="display:none">
+                <div class="empty-state-icon">&#128203;</div>
+                <h4>No leads found</h4>
+                <p>Adjust your filters or wait for new inquiries.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ===== LEAD DETAIL PANEL (slide-over) ===== -->
+        <div class="detail-overlay" id="detail-overlay"></div>
+        <div class="detail-panel" id="detail-panel">
+          <div class="detail-header">
+            <h3 id="detail-name">Lead Details</h3>
+            <button class="btn-close-detail" id="btn-close-detail">&times;</button>
+          </div>
+          <div class="detail-body">
+            <div class="detail-section">
+              <h4>Status</h4>
+              <select class="status-select" id="detail-status">
+                <option value="new">New</option>
+                <option value="contacted">Contacted</option>
+                <option value="in-progress">In Progress</option>
+                <option value="closed-won">Closed Won</option>
+                <option value="closed-lost">Closed Lost</option>
+              </select>
+            </div>
+            <div class="detail-section">
+              <h4>Contact Information</h4>
+              <div class="detail-grid">
+                <div class="detail-field"><label>Name</label><span id="detail-fullname">--</span></div>
+                <div class="detail-field"><label>Email</label><span id="detail-email">--</span></div>
+                <div class="detail-field"><label>Phone</label><span id="detail-phone">--</span></div>
+                <div class="detail-field"><label>Submitted</label><span id="detail-date">--</span></div>
+              </div>
+            </div>
+            <div class="detail-section">
+              <h4>Deal Details</h4>
+              <div class="detail-grid">
+                <div class="detail-field"><label>Loan Type</label><span id="detail-loantype">--</span></div>
+                <div class="detail-field"><label>Property Type</label><span id="detail-propertytype">--</span></div>
+                <div class="detail-field"><label>Loan Purpose</label><span id="detail-loanpurpose">--</span></div>
+                <div class="detail-field"><label>Loan Amount</label><span id="detail-amount">--</span></div>
+                <div class="detail-field"><label>Property State</label><span id="detail-state">--</span></div>
+                <div class="detail-field"><label>Credit Score</label><span id="detail-credit">--</span></div>
+                <div class="detail-field"><label>Timeline</label><span id="detail-timeline">--</span></div>
+                <div class="detail-field"><label>Lead Score</label><span id="detail-score">--</span></div>
+              </div>
+            </div>
+            <div class="detail-section">
+              <h4>Email Thread</h4>
+              <div class="email-thread" id="detail-emails">
+                <div class="empty-state" style="padding:1rem">
+                  <p style="font-size:0.85rem">No emails sent yet.</p>
+                </div>
+              </div>
+              <div class="reply-form">
+                <div class="reply-sender-row">
+                  <label for="reply-sender">Send as:</label>
+                  <select class="filter-select" id="reply-sender">
+                    <option value="zachary">Zachary Smith</option>
+                    <option value="cole">Cole Smith</option>
+                  </select>
+                </div>
+                <textarea class="reply-textarea" id="reply-text" placeholder="Type your reply to this lead..."></textarea>
+                <div class="reply-actions">
+                  <button class="btn btn-secondary btn-sm" id="btn-ai-draft">AI Draft</button>
+                  <button class="btn btn-secondary btn-sm" id="btn-preview">Preview</button>
+                  <button class="btn btn-primary btn-sm" id="btn-send-reply">Send Email</button>
+                </div>
+              </div>
+              <!-- Email Preview Modal -->
+              <div class="preview-overlay" id="preview-overlay">
+                <div class="preview-modal">
+                  <div class="preview-header">
+                    <h4>Email Preview</h4>
+                    <button class="btn-close-detail" id="btn-close-preview">&times;</button>
+                  </div>
+                  <div class="preview-meta" id="preview-meta"></div>
+                  <div class="preview-body" id="preview-body"></div>
+                  <div class="preview-actions">
+                    <button class="btn btn-secondary btn-sm" id="btn-cancel-preview">Edit</button>
+                    <button class="btn btn-primary btn-sm" id="btn-confirm-send">Confirm &amp; Send</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ===== AGENT VIEWS ===== -->
+        <div class="view" id="view-agent-inbound">
+          <div class="agents-grid">
+            <div class="agent-card" style="grid-column: 1 / -1;">
+              <div class="agent-card-header">
+                <div class="agent-icon inbound">&#9889;</div>
+                <div>
+                  <h4>Inbound Lead Agent</h4>
+                  <div class="agent-status"><span class="status-dot active"></span> Active</div>
+                </div>
+              </div>
+              <p>Captures and qualifies leads 24/7 through the website chat widget and intake form. Sends personalized auto-reply emails and scores leads based on deal quality.</p>
+            </div>
+          </div>
+          <div class="stats-grid" style="margin-top:1rem">
+            <div class="stat-card">
+              <div class="stat-card-label">Auto-Replies Sent</div>
+              <div class="stat-card-value" id="agent-inbound-replies">--</div>
+              <div class="stat-card-sub">All time</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-card-label">Chat Sessions</div>
+              <div class="stat-card-value" id="agent-inbound-chats">--</div>
+              <div class="stat-card-sub">Via chat widget</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-card-label">Avg Lead Score</div>
+              <div class="stat-card-value" id="agent-inbound-score">--</div>
+              <div class="stat-card-sub">Out of 10</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-card-label">Hot Leads</div>
+              <div class="stat-card-value" id="agent-inbound-hot">--</div>
+              <div class="stat-card-sub">Score 7+</div>
+            </div>
+          </div>
+
+          <div class="card" style="margin-top:1rem">
+            <div class="card-header">
+              <h3>Lead Score Distribution</h3>
+            </div>
+            <div class="card-body" style="padding:1rem">
+              <div class="chart-container" style="height:220px">
+                <canvas id="chart-lead-scores"></canvas>
+              </div>
+            </div>
+          </div>
+
+          <div class="card" style="margin-top:1rem">
+            <div class="card-header"><h3>Recent Auto-Replies</h3></div>
+            <div class="card-body">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Lead</th>
+                    <th>Loan Type</th>
+                    <th>Score</th>
+                    <th>Auto-Reply</th>
+                    <th>Date</th>
+                  </tr>
+                </thead>
+                <tbody id="agent-inbound-log"></tbody>
+              </table>
+              <div class="empty-state" id="agent-inbound-empty" style="display:none">
+                <div class="empty-state-icon">&#9889;</div>
+                <h4>No auto-replies yet</h4>
+                <p>Auto-replies will appear here as new inquiries come in.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="card" style="margin-top:1rem">
+            <div class="card-header"><h3>Top Scored Leads</h3></div>
+            <div class="card-body">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Loan Type</th>
+                    <th>Amount</th>
+                    <th>Score</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody id="agent-inbound-top-leads"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="view" id="view-agent-social">
+          <div class="agents-grid">
+            <div class="agent-card" style="grid-column: 1 / -1;">
+              <div class="agent-card-header">
+                <div class="agent-icon social">&#128227;</div>
+                <div>
+                  <h4>Social Media Agent</h4>
+                  <div class="agent-status"><span class="status-dot coming-soon"></span> Coming Soon</div>
+                </div>
+              </div>
+              <p>Generate platform-specific content, schedule posts, and grow your reach across LinkedIn, Facebook, Instagram, and X. AI-powered content creation with your brand voice.</p>
+            </div>
+          </div>
+          <div class="card" style="margin-top:1rem">
+            <div class="card-body padded">
+              <div class="empty-state">
+                <div class="empty-state-icon">&#128227;</div>
+                <h4>Social Media Agent — Phase 3</h4>
+                <p>This agent will generate and schedule social media content across platforms. Launching soon.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="view" id="view-agent-scout">
+          <div class="agents-grid">
+            <div class="agent-card" style="grid-column: 1 / -1;">
+              <div class="agent-card-header">
+                <div class="agent-icon scout">&#128269;</div>
+                <div>
+                  <h4>Web Scout Agent</h4>
+                  <div class="agent-status"><span class="status-dot coming-soon"></span> Coming Soon</div>
+                </div>
+              </div>
+              <p>Monitors Reddit, BiggerPockets, and real estate forums for borrowers asking about private lending. Surfaces high-intent conversations for you to engage with.</p>
+            </div>
+          </div>
+          <div class="card" style="margin-top:1rem">
+            <div class="card-body padded">
+              <div class="empty-state">
+                <div class="empty-state-icon">&#128269;</div>
+                <h4>Web Scout Agent — Phase 4</h4>
+                <p>This agent will find relevant conversations online and surface them for engagement. Launching soon.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="view" id="view-agent-engage">
+          <div class="agents-grid">
+            <div class="agent-card" style="grid-column: 1 / -1;">
+              <div class="agent-card-header">
+                <div class="agent-icon engage" style="background:#faf5ff">&#128172;</div>
+                <div>
+                  <h4>Engagement Agent</h4>
+                  <div class="agent-status"><span class="status-dot coming-soon"></span> Coming Soon</div>
+                </div>
+              </div>
+              <p>Drafts contextual replies and DMs for Web Scout leads. Reviews, approves, and sends responses across platforms with your voice and expertise.</p>
+            </div>
+          </div>
+          <div class="card" style="margin-top:1rem">
+            <div class="card-body padded">
+              <div class="empty-state">
+                <div class="empty-state-icon">&#128172;</div>
+                <h4>Engagement Agent — Phase 4</h4>
+                <p>This agent will help you reply, DM, and bridge leads from online conversations. Launching soon.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
+
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+  <script>
+    firebase.initializeApp({
+      apiKey: "AIzaSyAxfQsdCF8vO7WHIvyPRUe_nU8ZbLh0YYw",
+      authDomain: "umbrellaplace-59c7d.firebaseapp.com",
+      projectId: "umbrellaplace-59c7d",
+      storageBucket: "umbrellaplace-59c7d.firebasestorage.app",
+      messagingSenderId: "86921312365",
+      appId: "1:86921312365:web:2209f28924cda05c0ba764",
+    });
+  </script>
+  <script src="admin.js"></script>
+</body>
+</html>

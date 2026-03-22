@@ -123,9 +123,16 @@
         <span>Umbrella Place</span>
       </a>
       <div class="nav-links">
-        <a href="#services">Services</a>
-        <a href="#why-us">Why Us</a>
-        <a href="#how-it-works">Process</a>
+        <div class="nav-dropdown">
+          <a href="#services" class="nav-dropdown-toggle">Services <span class="dropdown-arrow">&#9662;</span></a>
+          <div class="nav-dropdown-menu">
+            <a href="bridge-loans.html">Bridge Loans</a>
+            <a href="fix-and-flip.html">Fix &amp; Flip</a>
+            <a href="new-construction.html">New Construction</a>
+            <a href="dscr-loans.html">DSCR Rental Loans</a>
+          </div>
+        </div>
+        <a href="calculator.html">Calculator</a>
         <a href="#about">About</a>
         <a href="#contact" class="nav-cta">Get Started</a>
       </div>
@@ -659,9 +666,9 @@
         <div class="footer-col">
           <h4>Quick Links</h4>
           <a href="#services">Services</a>
-          <a href="#why-us">Why Us</a>
-          <a href="#how-it-works">Process</a>
+          <a href="calculator.html">Calculator</a>
           <a href="#about">About</a>
+          <a href="privacy.html">Privacy Policy</a>
         </div>
         <div class="footer-col">
           <h4>Contact</h4>
@@ -680,21 +687,7 @@
     </footer>
 
     <script src="https://www.google.com/recaptcha/api.js?render=6LcQNYYsAAAAAJf7s_GzirvDqoTZTuwaCanRVu9F" defer></script>
-    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js" defer></script>
-    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js" defer></script>
-    <script>
-      document.addEventListener("DOMContentLoaded", function () {
-        firebase.initializeApp({
-          apiKey: "AIzaSyAxfQsdCF8vO7WHIvyPRUe_nU8ZbLh0YYw",
-          authDomain: "umbrellaplace-59c7d.firebaseapp.com",
-          projectId: "umbrellaplace-59c7d",
-          storageBucket: "umbrellaplace-59c7d.firebasestorage.app",
-          messagingSenderId: "86921312365",
-          appId: "1:86921312365:web:2209f28924cda05c0ba764",
-        });
-        window.db = firebase.firestore();
-      });
-    </script>
+    <!-- Firebase SDKs removed from public page — form submits via Cloud Function -->
     <script src="./script.js"></script>
     <script src="./chat-widget.js" defer></script>
   </body>

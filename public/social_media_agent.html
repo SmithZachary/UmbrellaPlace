@@ -1,0 +1,397 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="robots" content="noindex, nofollow" />
+</head>
+<body>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+#app{display:flex;min-height:740px;border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-lg);overflow:hidden;font-family:var(--font-sans);}
+#sb{width:214px;flex-shrink:0;background:#0d1117;display:flex;flex-direction:column;}
+.sb-head{padding:18px 16px 14px;border-bottom:0.5px solid rgba(255,255,255,0.07);}
+.sb-brand{font-size:14px;font-weight:500;color:#f1f5f9;letter-spacing:-0.01em;}
+.sb-sub{font-size:11px;color:rgba(255,255,255,0.35);margin-top:2px;}
+.sb-sec{padding:14px 16px 6px;font-size:10px;font-weight:500;letter-spacing:0.09em;text-transform:uppercase;color:rgba(255,255,255,0.22);}
+.sb-nav{display:flex;align-items:center;gap:9px;padding:9px 16px;font-size:13px;color:rgba(255,255,255,0.5);cursor:pointer;border-left:2px solid transparent;transition:all .15s;user-select:none;}
+.sb-nav:hover{color:rgba(255,255,255,0.8);background:rgba(255,255,255,0.05);}
+.sb-nav.on{color:#f1f5f9;background:rgba(255,255,255,0.07);border-left-color:#3b82f6;}
+.sb-nav svg{width:15px;height:15px;flex-shrink:0;opacity:.7;}
+.sb-badge{margin-left:auto;background:#3b82f6;color:#fff;font-size:10px;font-weight:600;padding:1px 6px;border-radius:10px;}
+.sb-plat{display:flex;align-items:center;gap:8px;padding:6px 16px;font-size:12px;color:rgba(255,255,255,0.45);}
+.pd{width:6px;height:6px;border-radius:50%;flex-shrink:0;}
+.sb-stats{margin-top:auto;padding:14px 16px;border-top:0.5px solid rgba(255,255,255,0.07);}
+.ss{display:flex;justify-content:space-between;padding:3px 0;font-size:11px;color:rgba(255,255,255,0.35);}
+.ss b{color:rgba(255,255,255,0.65);font-weight:500;}
+#main{flex:1;background:var(--color-background-primary);min-width:0;}
+.view{display:none;padding:22px 24px;}
+.view.on{display:block;}
+.vt{font-size:17px;font-weight:500;color:var(--color-text-primary);margin-bottom:3px;}
+.vs{font-size:13px;color:var(--color-text-secondary);margin-bottom:18px;}
+.tg{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin-bottom:18px;}
+.tc{border:1.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-lg);padding:12px 14px;cursor:pointer;transition:all .15s;}
+.tc:hover{border-color:var(--color-border-primary);}
+.tc.sel{border-color:#3b82f6;background:rgba(59,130,246,0.07);}
+.ti{width:30px;height:30px;border-radius:7px;background:var(--color-background-secondary);display:flex;align-items:center;justify-content:center;font-size:15px;margin-bottom:7px;}
+.tc.sel .ti{background:#3b82f6;}
+.tn{font-size:13px;font-weight:500;color:var(--color-text-primary);}
+.td{font-size:11px;color:var(--color-text-tertiary);margin-top:2px;line-height:1.4;}
+.fl{font-size:12px;font-weight:500;color:var(--color-text-secondary);margin-bottom:5px;display:block;}
+.ci{width:100%;min-height:68px;padding:9px 12px;font-size:13px;font-family:var(--font-sans);color:var(--color-text-primary);background:var(--color-background-primary);border:0.5px solid var(--color-border-secondary);border-radius:var(--border-radius-md);resize:vertical;outline:none;transition:border-color .15s;}
+.ci:focus{border-color:#3b82f6;}
+.ci::placeholder{color:var(--color-text-tertiary);}
+.gb{display:inline-flex;align-items:center;gap:8px;padding:9px 18px;background:#1d4ed8;color:#fff;border:none;border-radius:var(--border-radius-md);font-size:13px;font-weight:500;cursor:pointer;margin-top:14px;transition:background .15s;}
+.gb:hover{background:#1e40af;}
+.gb:disabled{opacity:.5;cursor:not-allowed;}
+.spin{width:13px;height:13px;border:2px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+.pc{border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-lg);overflow:hidden;margin-bottom:10px;}
+.ph{display:flex;align-items:center;gap:9px;padding:11px 14px;border-bottom:0.5px solid var(--color-border-tertiary);background:var(--color-background-secondary);}
+.pi{width:22px;height:22px;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff;flex-shrink:0;}
+.pn{font-size:13px;font-weight:500;color:var(--color-text-primary);}
+.pb2{font-size:10px;padding:2px 8px;border-radius:10px;margin-left:auto;font-weight:500;}
+.pbd{padding:13px 14px;}
+.pbd p{font-size:13px;color:var(--color-text-primary);line-height:1.65;white-space:pre-wrap;}
+.pas{display:flex;gap:7px;margin-top:11px;flex-wrap:wrap;}
+.bap{padding:6px 13px;background:#16a34a;color:#fff;border:none;border-radius:var(--border-radius-md);font-size:12px;font-weight:500;cursor:pointer;}
+.bap:hover{background:#15803d;}
+.bed{padding:6px 13px;background:transparent;color:var(--color-text-secondary);border:0.5px solid var(--color-border-secondary);border-radius:var(--border-radius-md);font-size:12px;cursor:pointer;}
+.bed:hover{background:var(--color-background-secondary);}
+.bds{padding:6px 10px;background:transparent;color:var(--color-text-tertiary);border:none;font-size:12px;cursor:pointer;}
+.bds:hover{color:#dc2626;}
+.stf{font-size:13px;font-weight:500;color:var(--color-text-primary);background:var(--color-background-secondary);border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-md);padding:6px 10px;width:100%;margin-bottom:8px;outline:none;font-family:var(--font-sans);}
+.stf:focus{border-color:#3b82f6;}
+.qi{border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-lg);padding:13px 14px;margin-bottom:9px;display:flex;gap:12px;align-items:flex-start;}
+.qpi{width:30px;height:30px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff;flex-shrink:0;margin-top:1px;}
+.qc{flex:1;min-width:0;}
+.qm{display:flex;align-items:center;gap:8px;margin-bottom:5px;flex-wrap:wrap;}
+.qpn{font-size:12px;font-weight:500;color:var(--color-text-primary);}
+.qt{font-size:11px;color:var(--color-text-tertiary);}
+.qtxt{font-size:12px;color:var(--color-text-secondary);line-height:1.55;overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;}
+.qa{display:flex;flex-direction:column;gap:5px;flex-shrink:0;}
+.qb{padding:5px 11px;font-size:11px;font-weight:500;border-radius:var(--border-radius-md);cursor:pointer;border:0.5px solid var(--color-border-secondary);background:transparent;color:var(--color-text-secondary);white-space:nowrap;transition:all .15s;}
+.qb:hover{background:var(--color-background-secondary);}
+.qb.pub{background:#16a34a;color:#fff;border-color:#16a34a;}
+.qb.pub:hover{background:#15803d;}
+.es{text-align:center;padding:40px 20px;color:var(--color-text-tertiary);font-size:13px;}
+.cw{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px;margin-top:8px;}
+.cd{border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-md);min-height:110px;padding:7px 6px;background:var(--color-background-primary);}
+.cdl{font-size:10px;font-weight:500;color:var(--color-text-tertiary);text-align:center;margin-bottom:4px;}
+.cdn{font-size:14px;font-weight:500;color:var(--color-text-primary);text-align:center;margin-bottom:6px;}
+.cd.tod .cdn{background:#3b82f6;color:#fff;width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 6px;}
+.chip{font-size:9px;padding:2px 5px;border-radius:3px;margin-bottom:2px;color:#fff;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.rg{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:4px;}
+.rc{border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-lg);padding:14px 16px;}
+.rph{display:flex;align-items:center;gap:9px;margin-bottom:11px;}
+.rpn{font-size:14px;font-weight:500;color:var(--color-text-primary);}
+.rr{display:flex;justify-content:space-between;padding:5px 0;border-bottom:0.5px solid var(--color-border-tertiary);font-size:12px;}
+.rr:last-child{border:none;}
+.rl{color:var(--color-text-secondary);}
+.rv{font-weight:500;color:var(--color-text-primary);}
+.aa-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;}
+</style>
+
+<div id="app">
+<div id="sb">
+  <div class="sb-head">
+    <div class="sb-brand">LoanFlow AI</div>
+    <div class="sb-sub">Social Media Agent</div>
+  </div>
+  <div class="sb-sec">Navigation</div>
+  <div class="sb-nav on" onclick="nav('gen')">
+    <svg fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"/></svg>
+    Generate
+  </div>
+  <div class="sb-nav" onclick="nav('queue')">
+    <svg fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zM3.75 12h.007v.008H3.75V12zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm-.375 5.25h.007v.008H3.75v-.008zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z"/></svg>
+    Approval Queue
+    <span class="sb-badge" id="qc">0</span>
+  </div>
+  <div class="sb-nav" onclick="nav('cal')">
+    <svg fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 9v7.5"/></svg>
+    Content Calendar
+  </div>
+  <div class="sb-nav" onclick="nav('recs')">
+    <svg fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z"/></svg>
+    AI Recommendations
+  </div>
+  <div class="sb-sec" style="margin-top:8px;">Platforms</div>
+  <div class="sb-plat"><div class="pd" style="background:#0077b5;"></div>LinkedIn</div>
+  <div class="sb-plat"><div class="pd" style="background:#1877f2;"></div>Facebook</div>
+  <div class="sb-plat"><div class="pd" style="background:#e1306c;"></div>Instagram</div>
+  <div class="sb-plat"><div class="pd" style="background:#888;"></div>X (Twitter)</div>
+  <div class="sb-plat"><div class="pd" style="background:#ff6719;"></div>Substack</div>
+  <div class="sb-stats">
+    <div class="ss"><span>Queue</span><b id="sq">0</b></div>
+    <div class="ss"><span>Published</span><b id="sp">47</b></div>
+    <div class="ss"><span>This week</span><b>12</b></div>
+  </div>
+</div>
+
+<div id="main">
+
+  <!-- GENERATE -->
+  <div class="view on" id="v-gen">
+    <div class="vt">Generate Content</div>
+    <div class="vs">AI writes platform-optimized posts for all 5 channels at once</div>
+    <div class="tg">
+      <div class="tc sel" onclick="selType(this,'edu')">
+        <div class="ti">💡</div>
+        <div class="tn">Educational Tip</div>
+        <div class="td">Explain loan concepts and strategies</div>
+      </div>
+      <div class="tc" onclick="selType(this,'deal')">
+        <div class="ti">🏗</div>
+        <div class="tn">Deal Spotlight</div>
+        <div class="td">Showcase a closed deal or case study</div>
+      </div>
+      <div class="tc" onclick="selType(this,'cta')">
+        <div class="ti">🎯</div>
+        <div class="tn">Lead Gen CTA</div>
+        <div class="td">Drive inquiries and applications</div>
+      </div>
+    </div>
+    <label class="fl">Additional context <span style="font-weight:400;color:var(--color-text-tertiary);">(optional — topic, deal details, stats…)</span></label>
+    <textarea class="ci" id="ctx" placeholder="e.g. Bridge loan closed in Miami, $1.8M, 75% LTV, 9-month term for a fix-and-flip investor…"></textarea>
+    <button class="gb" id="gbtn" onclick="generate()">
+      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"/></svg>
+      Generate for all 5 platforms
+    </button>
+    <div id="res" style="margin-top:22px;"></div>
+  </div>
+
+  <!-- QUEUE -->
+  <div class="view" id="v-queue">
+    <div class="vt">Approval Queue</div>
+    <div class="vs">Review AI-generated posts before they go live</div>
+    <div id="ql"><div class="es">No posts yet — generate content to fill the queue.</div></div>
+  </div>
+
+  <!-- CALENDAR -->
+  <div class="view" id="v-cal">
+    <div class="vt">Content Calendar</div>
+    <div class="vs" id="cwl"></div>
+    <div class="cw" id="cg"></div>
+  </div>
+
+  <!-- RECS -->
+  <div class="view" id="v-recs">
+    <div class="vt">AI Posting Recommendations</div>
+    <div class="vs">Optimal schedule for private lending content based on platform research</div>
+    <div class="rg">
+      <div class="rc">
+        <div class="rph"><div class="pd" style="background:#0077b5;width:10px;height:10px;"></div><span class="rpn">LinkedIn</span></div>
+        <div class="rr"><span class="rl">Frequency</span><span class="rv">4× / week</span></div>
+        <div class="rr"><span class="rl">Best times</span><span class="rv">Tue–Thu, 8–10 am</span></div>
+        <div class="rr"><span class="rl">Top formats</span><span class="rv">Deal spotlights, tips</span></div>
+        <div class="rr"><span class="rl">Ideal length</span><span class="rv">150–300 words</span></div>
+      </div>
+      <div class="rc">
+        <div class="rph"><div class="pd" style="background:#1877f2;width:10px;height:10px;"></div><span class="rpn">Facebook</span></div>
+        <div class="rr"><span class="rl">Frequency</span><span class="rv">5× / week</span></div>
+        <div class="rr"><span class="rl">Best times</span><span class="rv">Wed–Fri, 1–3 pm</span></div>
+        <div class="rr"><span class="rl">Top formats</span><span class="rv">CTAs, community Q&amp;A</span></div>
+        <div class="rr"><span class="rl">Ideal length</span><span class="rv">80–150 words</span></div>
+      </div>
+      <div class="rc">
+        <div class="rph"><div class="pd" style="background:#e1306c;width:10px;height:10px;"></div><span class="rpn">Instagram</span></div>
+        <div class="rr"><span class="rl">Frequency</span><span class="rv">6× / week</span></div>
+        <div class="rr"><span class="rl">Best times</span><span class="rv">Mon–Sat, 11 am &amp; 7 pm</span></div>
+        <div class="rr"><span class="rl">Top formats</span><span class="rv">Tips + hashtag stacks</span></div>
+        <div class="rr"><span class="rl">Ideal length</span><span class="rv">50–100 word caption</span></div>
+      </div>
+      <div class="rc">
+        <div class="rph"><div class="pd" style="background:#888;width:10px;height:10px;"></div><span class="rpn">X (Twitter)</span></div>
+        <div class="rr"><span class="rl">Frequency</span><span class="rv">10× / week</span></div>
+        <div class="rr"><span class="rl">Best times</span><span class="rv">Daily, 8 am &amp; 5 pm</span></div>
+        <div class="rr"><span class="rl">Top formats</span><span class="rv">Hot takes, quick tips</span></div>
+        <div class="rr"><span class="rl">Ideal length</span><span class="rv">Under 280 chars</span></div>
+      </div>
+      <div class="rc" style="grid-column:span 2;">
+        <div class="rph"><div class="pd" style="background:#ff6719;width:10px;height:10px;"></div><span class="rpn">Substack</span></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0;">
+          <div><div class="rr"><span class="rl">Frequency</span><span class="rv">1–2× / week</span></div><div class="rr"><span class="rl">Best day</span><span class="rv">Tuesday or Thursday</span></div></div>
+          <div><div class="rr"><span class="rl">Top formats</span><span class="rv">Deep dives, market intel</span></div><div class="rr"><span class="rl">Ideal length</span><span class="rv">600–1,200 words</span></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+</div>
+
+<script>
+const PC = {
+  linkedin:{name:'LinkedIn',color:'#0077b5',bg:'#dbeafe',tc:'#1d4ed8',icon:'in',sched:'Tue 9:00 AM'},
+  facebook:{name:'Facebook',color:'#1877f2',bg:'#dbeafe',tc:'#1d4ed8',icon:'f',sched:'Wed 1:00 PM'},
+  instagram:{name:'Instagram',color:'#e1306c',bg:'#fce7f3',tc:'#9d174d',icon:'ig',sched:'Thu 11:00 AM'},
+  twitter:{name:'X (Twitter)',color:'#444',bg:'#f1f5f9',tc:'#334155',icon:'𝕏',sched:'Fri 8:00 AM'},
+  substack:{name:'Substack',color:'#ff6719',bg:'#ffedd5',tc:'#c2410c',icon:'S',sched:'Thu 7:00 AM'}
+};
+const BADGE = {linkedin:'Professional',facebook:'Community',instagram:'Visual',twitter:'Concise',substack:'Newsletter'};
+let ctype='edu', queue=[], pub=47;
+
+const CALDATA = [
+  {d:1,p:'linkedin',t:'Bridge Loan 101'},{d:1,p:'twitter',t:'Quick take'},
+  {d:2,p:'instagram',t:'Deal spotlight'},{d:2,p:'facebook',t:'Market update'},
+  {d:3,p:'linkedin',t:'DSCR explained'},{d:3,p:'facebook',t:'Apply now CTA'},
+  {d:4,p:'twitter',t:'Rate hot take'},{d:4,p:'substack',t:'HM market trends'},
+  {d:5,p:'instagram',t:'Before/after reno'},{d:5,p:'linkedin',t:'Case study'},
+  {d:6,p:'facebook',t:'Success story'},{d:6,p:'twitter',t:'Friday tip'},
+];
+
+function nav(v){
+  document.querySelectorAll('.view').forEach(x=>x.classList.remove('on'));
+  document.querySelectorAll('.sb-nav').forEach(x=>x.classList.remove('on'));
+  document.getElementById('v-'+v).classList.add('on');
+  const idx={gen:0,queue:1,cal:2,recs:3}[v];
+  document.querySelectorAll('.sb-nav')[idx].classList.add('on');
+  if(v==='cal') buildCal();
+  if(v==='queue') renderQ();
+}
+
+function selType(el,t){
+  document.querySelectorAll('.tc').forEach(c=>c.classList.remove('sel'));
+  el.classList.add('sel'); ctype=t;
+}
+
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');}
+
+async function generate(){
+  const btn=document.getElementById('gbtn');
+  const ctx=document.getElementById('ctx').value.trim();
+  const res=document.getElementById('res');
+  btn.disabled=true;
+  btn.innerHTML='<div class="spin"></div> Writing posts…';
+  res.innerHTML='<div style="font-size:13px;color:var(--color-text-tertiary);padding:12px 0;">Crafting platform-optimized content…</div>';
+
+  const labels={edu:'Educational Tip about private lending',deal:'Deal Spotlight / Case Study',cta:'Lead Generation CTA'};
+  const prompt=`You are a social media manager for a private loan brokerage specializing in bridge loans, fix-and-flip, DSCR, construction, and hard money loans.
+
+Content type: "${labels[ctype]}"
+${ctx?'Context: '+ctx:'Choose a compelling, timely topic in private lending.'}
+
+Return ONLY valid JSON, no markdown, no code fences, exactly this structure:
+{"linkedin":"post (150-300 words, professional, 3-4 hashtags at end, use \\n for line breaks)","facebook":"post (100-150 words, friendly, CTA, 2-3 hashtags)","instagram":"short punchy caption (60-80 words) then \\n\\n then 10 relevant hashtags each on new line","twitter":"post under 255 chars, punchy, max 2 hashtags","substack_title":"newsletter subject line under 60 chars","substack":"newsletter opening (200-280 words, authoritative, educational, end teasing what the full issue covers)"}`;
+
+  try{
+    const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1600,messages:[{role:'user',content:prompt}]})});
+    const d=await r.json();
+    const raw=d.content[0].text.trim().replace(/```json|```/g,'').trim();
+    const posts=JSON.parse(raw);
+    renderRes(posts);
+  }catch(e){
+    res.innerHTML='<div style="color:#dc2626;font-size:13px;padding:12px 0;">Generation failed — please try again.</div>';
+  }
+  btn.disabled=false;
+  btn.innerHTML='<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"/></svg> Generate for all 5 platforms';
+}
+
+function renderRes(posts){
+  const res=document.getElementById('res');
+  window._posts=posts;
+  let h=`<div class="aa-row"><span style="font-size:13px;font-weight:500;color:var(--color-text-primary);">Generated Posts</span><button onclick="approveAll()" style="padding:6px 14px;background:#16a34a;color:#fff;border:none;border-radius:var(--border-radius-md);font-size:12px;font-weight:500;cursor:pointer;">Approve all →</button></div>`;
+  ['linkedin','facebook','instagram','twitter','substack'].forEach(p=>{
+    const c=PC[p], txt=posts[p], title=p==='substack'?posts.substack_title:null;
+    h+=`<div class="pc" id="pc-${p}">
+      <div class="ph">
+        <div class="pi" style="background:${c.color};">${c.icon}</div>
+        <span class="pn">${c.name}</span>
+        <span class="pb2" style="background:${c.bg};color:${c.tc};">${BADGE[p]}</span>
+      </div>
+      <div class="pbd">
+        ${title?`<input class="stf" id="st-${p}" value="${String(title).replace(/"/g,'&quot;')}">`:'' }
+        <p id="pt-${p}">${esc(txt)}</p>
+        <div class="pas">
+          <button class="bap" onclick="approvePost('${p}')">Approve</button>
+          <button class="bed" onclick="editPost('${p}')">Edit</button>
+          <button class="bds" onclick="discardPost('${p}')">Discard</button>
+        </div>
+      </div>
+    </div>`;
+  });
+  res.innerHTML=h;
+}
+
+function approvePost(p){
+  const txt=document.getElementById('pt-'+p).innerText;
+  const title=document.getElementById('st-'+p)?document.getElementById('st-'+p).value:null;
+  queue.push({id:Date.now()+'_'+p,platform:p,name:PC[p].name,color:PC[p].color,bg:PC[p].bg,icon:PC[p].icon,tc:PC[p].tc,txt,title,sched:PC[p].sched});
+  updBadge();
+  const card=document.getElementById('pc-'+p);
+  card.style.opacity='.4';
+  card.querySelector('.pas').innerHTML='<span style="font-size:12px;color:#16a34a;font-weight:500;">✓ Added to queue</span>';
+}
+
+function approveAll(){
+  ['linkedin','facebook','instagram','twitter','substack'].forEach(p=>{
+    const card=document.getElementById('pc-'+p);
+    if(card&&card.style.opacity!=='0.4') approvePost(p);
+  });
+}
+
+function editPost(p){
+  const el=document.getElementById('pt-'+p);
+  const v=el.innerText;
+  el.outerHTML=`<textarea id="pt-${p}" style="width:100%;min-height:100px;font-size:13px;font-family:var(--font-sans);color:var(--color-text-primary);background:var(--color-background-secondary);border:0.5px solid #3b82f6;border-radius:var(--border-radius-md);padding:8px;resize:vertical;outline:none;line-height:1.6;">${v}</textarea>`;
+}
+
+function discardPost(p){
+  const c=document.getElementById('pc-'+p);
+  if(c) c.remove();
+}
+
+function updBadge(){
+  const n=queue.length;
+  document.getElementById('qc').textContent=n;
+  document.getElementById('sq').textContent=n;
+}
+
+function renderQ(){
+  const list=document.getElementById('ql');
+  if(!queue.length){list.innerHTML='<div class="es">No posts yet — generate content to fill the queue.</div>';return;}
+  list.innerHTML=queue.map((item,i)=>`
+    <div class="qi" id="qi-${item.id}">
+      <div class="qpi" style="background:${item.color};">${item.icon}</div>
+      <div class="qc">
+        <div class="qm">
+          <span class="qpn">${item.name}</span>
+          <span class="qt">Scheduled: ${item.sched}</span>
+          ${item.title?`<span style="font-size:11px;font-weight:500;color:var(--color-text-secondary);">${item.title}</span>`:''}
+        </div>
+        <div class="qtxt">${item.txt}</div>
+      </div>
+      <div class="qa">
+        <button class="qb pub" onclick="publishPost(${i})">Publish now</button>
+        <button class="qb" onclick="removeQ(${i})">Remove</button>
+      </div>
+    </div>`).join('');
+}
+
+function publishPost(i){
+  queue.splice(i,1); pub++;
+  document.getElementById('sp').textContent=pub;
+  updBadge(); renderQ();
+}
+function removeQ(i){queue.splice(i,1);updBadge();renderQ();}
+
+function buildCal(){
+  const today=new Date();
+  const sow=new Date(today); sow.setDate(today.getDate()-today.getDay());
+  document.getElementById('cwl').textContent='Week of '+sow.toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
+  const days=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  let h='';
+  for(let d=0;d<7;d++){
+    const dt=new Date(sow); dt.setDate(sow.getDate()+d);
+    const isToday=dt.toDateString()===today.toDateString();
+    const dp=CALDATA.filter(x=>x.d===d+1);
+    const chips=dp.map(x=>`<div class="chip" style="background:${PC[x.p]?.color||'#888'};" title="${x.t}">${x.t}</div>`).join('');
+    h+=`<div class="cd${isToday?' tod':''}">
+      <div class="cdl">${days[d]}</div>
+      <div class="cdn">${dt.getDate()}</div>
+      ${chips}
+    </div>`;
+  }
+  document.getElementById('cg').innerHTML=h;
+}
+</script>

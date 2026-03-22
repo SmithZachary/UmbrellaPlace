@@ -2,6 +2,38 @@
   const CHAT_ENDPOINT =
     "https://us-central1-umbrellaplace-59c7d.cloudfunctions.net/chat";
 
+  // Predefined Q&A
+  const QUICK_QUESTIONS = [
+    {
+      label: "What loan types do you offer?",
+      answer:
+        "We offer four main products:\n\n• Bridge Loans — short-term, close in 7-14 days\n• Fix & Flip — acquisition + rehab in one loan\n• New Construction — ground-up build financing\n• DSCR Rental Loans — long-term, based on rental income\n\nWant details on any of these?",
+    },
+    {
+      label: "How fast can you close?",
+      answer:
+        "It depends on the loan type:\n\n• Bridge & Fix-and-Flip — typically 7-14 days\n• New Construction — 2-4 weeks\n• DSCR Rental — 21-30 days\n\nTimelines vary by deal complexity, but speed is one of our biggest strengths.",
+    },
+    {
+      label: "What are your rates?",
+      answer:
+        "Rates vary by lender, loan type, and deal specifics — things like LTV, property type, borrower experience, and timeline all factor in.\n\nSince we work with 50+ lenders, we shop your deal to find the most competitive terms. The best way to get an accurate quote is to submit your deal details and we'll come back with real numbers.",
+    },
+    {
+      label: "Do you charge upfront fees?",
+      answer:
+        "No upfront fees — ever. Our brokerage fee is earned at closing and disclosed upfront before you commit. You'll never pay us a dime unless your loan closes.",
+    },
+    {
+      label: "What states do you lend in?",
+      answer:
+        "We serve 48 states through our network of 50+ private lenders, funds, and institutional capital sources. Just let us know your property location and we'll match you with the right lender.",
+    },
+  ];
+
+  // Track which questions have been asked
+  const askedIndexes = new Set();
+
   // Build chat widget DOM
   const widget = document.createElement("div");
   widget.id = "chat-widget";
@@ -22,13 +54,9 @@
         </div>
         <button id="chat-close" aria-label="Close chat">&times;</button>
       </div>
-      <div id="chat-messages">
-        <div class="chat-msg chat-msg-bot">
-          <p>Hey! I'm Zach, one of the managing partners here at Umbrella Place. I can answer questions about bridge loans, fix & flip financing, DSCR rentals, new construction — or help you figure out which loan type fits your deal. What can I help with?</p>
-        </div>
-      </div>
+      <div id="chat-messages"></div>
       <form id="chat-input-form">
-        <input type="text" id="chat-input" placeholder="Ask about loan options..." autocomplete="off" />
+        <input type="text" id="chat-input" placeholder="Type your question..." autocomplete="off" />
         <button type="submit" id="chat-send" aria-label="Send message">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
         </button>
@@ -44,8 +72,150 @@
   const input = document.getElementById("chat-input");
   const messagesEl = document.getElementById("chat-messages");
 
-  // Chat history for API context
   let chatHistory = [];
+
+  // --- Core DOM helpers ---
+
+  function appendMessage(text, role) {
+    const div = document.createElement("div");
+    div.className = `chat-msg chat-msg-${role === "user" ? "user" : "bot"}`;
+    div.innerHTML = `<p>${escapeHtml(text)}</p>`;
+    messagesEl.appendChild(div);
+    scrollDown();
+    return div;
+  }
+
+  function appendBotMessage(text) {
+    const div = document.createElement("div");
+    div.className = "chat-msg chat-msg-bot";
+    div.innerHTML = `<p>${formatBotText(text)}</p>`;
+    messagesEl.appendChild(div);
+    scrollDown();
+    return div;
+  }
+
+  function appendTyping() {
+    const div = document.createElement("div");
+    div.className = "chat-msg chat-msg-bot chat-typing";
+    div.innerHTML =
+      '<p><span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span></p>';
+    messagesEl.appendChild(div);
+    scrollDown();
+    return div;
+  }
+
+  function scrollDown() {
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+  }
+
+  function escapeHtml(str) {
+    const d = document.createElement("div");
+    d.textContent = str;
+    return d.innerHTML;
+  }
+
+  function formatBotText(text) {
+    return escapeHtml(text)
+      .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+      .replace(/^• (.+)$/gm, '<span class="chat-bullet">$1</span>')
+      .replace(/\n\n/g, "</p><p>")
+      .replace(/\n/g, "<br>");
+  }
+
+  // --- Remove any active picks/follow-ups ---
+
+  function clearPicks() {
+    messagesEl.querySelectorAll(".chat-picks").forEach((el) => el.remove());
+  }
+
+  // --- Render quick-pick buttons ---
+
+  function showPicks() {
+    clearPicks();
+
+    const remaining = QUICK_QUESTIONS.map((q, i) => ({ ...q, i })).filter(
+      (q) => !askedIndexes.has(q.i)
+    );
+
+    const wrap = document.createElement("div");
+    wrap.className = "chat-picks";
+
+    if (remaining.length > 0) {
+      remaining.forEach((q) => {
+        const btn = document.createElement("button");
+        btn.className = "chat-quick-btn";
+        btn.textContent = q.label;
+        btn.addEventListener("click", () => onPickClick(q.i));
+        wrap.appendChild(btn);
+      });
+    } else {
+      const note = document.createElement("div");
+      note.className = "chat-no-more";
+      note.textContent = "No more quick questions — type below to chat.";
+      wrap.appendChild(note);
+    }
+
+    // Always show "Ask something else"
+    const customBtn = document.createElement("button");
+    customBtn.className = "chat-quick-btn chat-quick-custom";
+    customBtn.textContent = "Ask something else...";
+    customBtn.addEventListener("click", () => {
+      clearPicks();
+      input.focus();
+    });
+    wrap.appendChild(customBtn);
+
+    messagesEl.appendChild(wrap);
+    scrollDown();
+  }
+
+  function showFollowUp() {
+    clearPicks();
+
+    const remaining = QUICK_QUESTIONS.filter((_, i) => !askedIndexes.has(i));
+
+    const wrap = document.createElement("div");
+    wrap.className = "chat-picks";
+
+    if (remaining.length > 0) {
+      const moreBtn = document.createElement("button");
+      moreBtn.className = "chat-quick-btn";
+      moreBtn.textContent = "More questions";
+      moreBtn.addEventListener("click", () => showPicks());
+      wrap.appendChild(moreBtn);
+    }
+
+    const chatBtn = document.createElement("button");
+    chatBtn.className = "chat-quick-btn chat-quick-custom";
+    chatBtn.textContent = "Ask something else...";
+    chatBtn.addEventListener("click", () => {
+      clearPicks();
+      input.focus();
+    });
+    wrap.appendChild(chatBtn);
+
+    messagesEl.appendChild(wrap);
+    scrollDown();
+  }
+
+  function onPickClick(index) {
+    const q = QUICK_QUESTIONS[index];
+    askedIndexes.add(index);
+    clearPicks();
+
+    appendMessage(q.label, "user");
+    appendBotMessage(q.answer);
+
+    chatHistory.push({ role: "user", content: q.label });
+    chatHistory.push({ role: "assistant", content: q.answer });
+
+    showFollowUp();
+  }
+
+  // --- Init ---
+
+  appendBotMessage("Hey! I'm Zach from Umbrella Place. Pick a question below or type your own.");
+  showPicks();
 
   toggle.addEventListener("click", () => {
     panel.classList.remove("chat-hidden");
@@ -58,39 +228,16 @@
     toggle.classList.remove("chat-hidden");
   });
 
-  function appendMessage(text, role) {
-    const div = document.createElement("div");
-    div.className = `chat-msg chat-msg-${role === "user" ? "user" : "bot"}`;
-    div.innerHTML = `<p>${escapeHtml(text)}</p>`;
-    messagesEl.appendChild(div);
-    messagesEl.scrollTop = messagesEl.scrollHeight;
-    return div;
-  }
-
-  function appendTyping() {
-    const div = document.createElement("div");
-    div.className = "chat-msg chat-msg-bot chat-typing";
-    div.innerHTML =
-      '<p><span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span></p>';
-    messagesEl.appendChild(div);
-    messagesEl.scrollTop = messagesEl.scrollHeight;
-    return div;
-  }
-
-  function escapeHtml(str) {
-    const div = document.createElement("div");
-    div.textContent = str;
-    return div.innerHTML;
-  }
+  // --- Free chat ---
 
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
     const text = input.value.trim();
     if (!text) return;
 
+    clearPicks();
     input.value = "";
     appendMessage(text, "user");
-
     chatHistory.push({ role: "user", content: text });
 
     const typingEl = appendTyping();
@@ -106,19 +253,17 @@
       });
 
       typingEl.remove();
-
       if (!res.ok) throw new Error("Request failed");
 
       const data = await res.json();
       const reply = data.reply || "Sorry, I had trouble with that. Please try again.";
 
       chatHistory.push({ role: "assistant", content: reply });
-      appendMessage(reply, "bot");
+      appendBotMessage(reply);
     } catch (err) {
       typingEl.remove();
-      appendMessage(
-        "Sorry, I'm having trouble connecting right now. Feel free to call us directly at (850) 706-0145 or (801) 613-2659.",
-        "bot"
+      appendBotMessage(
+        "Sorry, I'm having trouble connecting. Call us at (850) 706-0145 or (801) 613-2659."
       );
     } finally {
       input.disabled = false;

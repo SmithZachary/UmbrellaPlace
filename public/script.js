@@ -259,10 +259,9 @@ if (form) {
 
     if (!valid) return;
 
-    // Collect form data and save to Firestore
+    // Collect form data
     const formData = new FormData(form);
     const data = Object.fromEntries(formData.entries());
-    data.submittedAt = new Date().toISOString();
 
     // Disable submit button while saving
     const submitBtn = form.querySelector('button[type="submit"]');
@@ -283,20 +282,23 @@ if (form) {
       data.recaptchaToken = recaptchaToken;
     }
 
-    db.collection("inquiries")
-      .add(data)
-      .then(() => {
-        formSuccess.hidden = false;
-        form.reset();
-        submitBtn.disabled = false;
-        submitBtn.textContent = "Submit for Review";
-      })
-      .catch((err) => {
-        console.error("Error saving inquiry:", err);
-        submitBtn.disabled = false;
-        submitBtn.textContent = "Submit for Review";
-        alert("Something went wrong. Please try again or contact us directly.");
+    try {
+      const res = await fetch("https://us-central1-umbrellaplace-59c7d.cloudfunctions.net/submitInquiry", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
       });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || "Submission failed");
+      formSuccess.hidden = false;
+      form.reset();
+    } catch (err) {
+      console.error("Error saving inquiry:", err);
+      alert("Something went wrong. Please try again or contact us directly.");
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.textContent = "Submit for Review";
+    }
   });
 
   // Remove error styling on input
