@@ -747,10 +747,20 @@
         document.getElementById("social-last-run").textContent = "Last run: " + d.toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
       }
 
-      // Load platform checkboxes
+      // Load platform checkboxes (batch run platforms)
       if (socialConfig.platforms) {
-        document.querySelectorAll("#social-config-panel .checkbox-row input[type=checkbox]").forEach(cb => {
+        document.querySelectorAll("#social-config-panel .checkbox-row:first-of-type input[type=checkbox]").forEach(cb => {
           cb.checked = socialConfig.platforms.includes(cb.value);
+        });
+      }
+
+      // Load schedule config
+      if (socialConfig.scheduleEnabled !== undefined) {
+        document.getElementById("social-schedule-enabled").checked = socialConfig.scheduleEnabled;
+      }
+      if (socialConfig.schedulePlatforms) {
+        document.querySelectorAll("#schedule-platforms input[type=checkbox]").forEach(cb => {
+          cb.checked = socialConfig.schedulePlatforms.includes(cb.value);
         });
       }
 
@@ -759,10 +769,141 @@
       socialPosts = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       renderSocialStats();
       renderSocialTable();
+      renderSocialCalendar();
     } catch (err) {
       console.error("Load social agent error:", err);
     }
   }
+
+  // ===== SOCIAL CALENDAR =====
+  let calendarDate = new Date();
+
+  function renderSocialCalendar() {
+    const container = document.getElementById("social-calendar");
+    if (!container) return;
+
+    const year = calendarDate.getFullYear();
+    const month = calendarDate.getMonth();
+
+    // Update month label
+    const label = document.getElementById("cal-month-label");
+    if (label) label.textContent = new Date(year, month).toLocaleString("en-US", { month: "long", year: "numeric" });
+
+    // Build day headers
+    const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    let html = days.map(d => `<div class="cal-header">${d}</div>`).join("");
+
+    // First day of month and total days
+    const firstDay = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const daysInPrev = new Date(year, month, 0).getDate();
+
+    const today = new Date();
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,"0")}-${String(today.getDate()).padStart(2,"0")}`;
+
+    // Index posts by date
+    const postsByDate = {};
+    socialPosts.forEach(p => {
+      const dateStr = (p.postedAt || p.generatedAt || "").slice(0, 10);
+      if (!dateStr) return;
+      if (!postsByDate[dateStr]) postsByDate[dateStr] = [];
+      postsByDate[dateStr].push(p);
+    });
+
+    // Previous month trailing days
+    for (let i = firstDay - 1; i >= 0; i--) {
+      const day = daysInPrev - i;
+      const m = month === 0 ? 12 : month;
+      const y = month === 0 ? year - 1 : year;
+      const dateStr = `${y}-${String(m).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
+      html += renderCalDay(day, dateStr, "other-month", postsByDate[dateStr], todayStr);
+    }
+
+    // Current month days
+    for (let day = 1; day <= daysInMonth; day++) {
+      const dateStr = `${year}-${String(month+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
+      const cls = dateStr === todayStr ? "today" : "";
+      html += renderCalDay(day, dateStr, cls, postsByDate[dateStr], todayStr);
+    }
+
+    // Next month leading days
+    const totalCells = firstDay + daysInMonth;
+    const remaining = totalCells % 7 === 0 ? 0 : 7 - (totalCells % 7);
+    for (let day = 1; day <= remaining; day++) {
+      const m = month + 2 > 12 ? 1 : month + 2;
+      const y = month + 2 > 12 ? year + 1 : year;
+      const dateStr = `${y}-${String(m).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
+      html += renderCalDay(day, dateStr, "other-month", postsByDate[dateStr], todayStr);
+    }
+
+    container.innerHTML = html;
+
+    // Tooltip hover events
+    let tooltip = null;
+    container.querySelectorAll(".cal-post").forEach(el => {
+      el.addEventListener("mouseenter", (e) => {
+        const postId = el.dataset.postId;
+        const post = socialPosts.find(p => p.id === postId);
+        if (!post) return;
+        tooltip = document.createElement("div");
+        tooltip.className = "cal-tooltip";
+        tooltip.innerHTML = `
+          <div class="cal-tooltip-platform">${capitalize(post.platform)}</div>
+          <div class="cal-tooltip-status">${capitalize(post.status)} &middot; ${post.postedAt || post.generatedAt ? new Date(post.postedAt || post.generatedAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : ""}</div>
+          <div class="cal-tooltip-content">${esc((post.content || "").slice(0, 200))}${(post.content || "").length > 200 ? "..." : ""}</div>
+        `;
+        document.body.appendChild(tooltip);
+        positionTooltip(e, tooltip);
+      });
+      el.addEventListener("mousemove", (e) => { if (tooltip) positionTooltip(e, tooltip); });
+      el.addEventListener("mouseleave", () => { if (tooltip) { tooltip.remove(); tooltip = null; } });
+    });
+  }
+
+  function renderCalDay(day, dateStr, extraCls, posts, todayStr) {
+    let html = `<div class="cal-day ${extraCls}"><div class="cal-day-num">${day}</div>`;
+    if (posts && posts.length > 0) {
+      const show = posts.slice(0, 3);
+      show.forEach(p => {
+        const statusCls = p.status === "posted" ? "posted" : (p.status || "draft");
+        const icon = p.status === "posted" ? "&#10003; " : p.status === "queued" ? "&#9202; " : "";
+        html += `<div class="cal-post cal-post-${p.platform} ${statusCls}" data-post-id="${p.id}" title="${capitalize(p.platform)}">${icon}${esc((p.topic || p.content || "").slice(0, 25))}</div>`;
+      });
+      if (posts.length > 3) {
+        html += `<div class="cal-more">+${posts.length - 3} more</div>`;
+      }
+    }
+
+    // Show schedule dots for future days (9 AM and 3 PM)
+    if (dateStr > todayStr) {
+      const dayOfWeek = new Date(dateStr).getDay();
+      if (dayOfWeek > 0 && dayOfWeek < 6 && (!posts || posts.length === 0)) {
+        html += `<div class="cal-schedule-row"><div class="cal-schedule-dot future" title="9 AM scheduled"></div><div class="cal-schedule-dot future" title="3 PM scheduled"></div></div>`;
+      }
+    }
+
+    html += `</div>`;
+    return html;
+  }
+
+  function positionTooltip(e, tip) {
+    let x = e.clientX + 12;
+    let y = e.clientY + 12;
+    if (x + 310 > window.innerWidth) x = e.clientX - 310;
+    if (y + 150 > window.innerHeight) y = e.clientY - 150;
+    tip.style.left = x + "px";
+    tip.style.top = y + "px";
+  }
+
+  // Calendar nav
+  document.getElementById("cal-prev")?.addEventListener("click", () => {
+    calendarDate.setMonth(calendarDate.getMonth() - 1);
+    renderSocialCalendar();
+  });
+  document.getElementById("cal-next")?.addEventListener("click", () => {
+    calendarDate.setMonth(calendarDate.getMonth() + 1);
+    renderSocialCalendar();
+  });
 
   function renderSocialStats() {
     document.getElementById("social-stat-total").textContent = socialPosts.length;
@@ -804,8 +945,10 @@
         <td><span class="badge ${statusClass}">${capitalize(p.status)}</span></td>
         <td>${date}</td>
         <td>
-          <button class="btn btn-secondary btn-sm btn-copy-row" data-content="${esc(p.content || "")}" title="Copy">Copy</button>
-          ${p.status !== "posted" ? `<button class="btn btn-sm btn-mark-posted" data-id="${p.id}" style="background:var(--success);color:#fff;border:none;margin-left:4px" title="Mark posted">Posted</button>` : ""}
+          <button class="btn btn-secondary btn-sm btn-copy-row" data-id="${p.id}" title="Copy">Copy</button>
+          ${p.platform === "x" && p.status !== "posted" ? `<button class="btn btn-sm btn-post-x" data-id="${p.id}" style="background:#000;color:#fff;border:none;margin-left:4px" title="Post to X">Post to X</button>` : ""}
+          ${p.platform === "facebook" && p.status !== "posted" ? `<button class="btn btn-sm btn-post-fb" data-id="${p.id}" style="background:#1877F2;color:#fff;border:none;margin-left:4px" title="Post to Facebook">Post to FB</button>` : ""}
+          ${p.status !== "posted" ? `<button class="btn btn-sm btn-delete-post" data-id="${p.id}" style="background:var(--danger);color:#fff;border:none;margin-left:4px" title="Delete">Delete</button>` : ""}
         </td>
       </tr>`;
     }).join("");
@@ -813,21 +956,81 @@
     tbody.querySelectorAll(".btn-copy-row").forEach(btn => {
       btn.addEventListener("click", (e) => {
         e.stopPropagation();
-        const row = socialPosts.find(p => p.id === btn.closest("tr").dataset.id);
+        const row = socialPosts.find(p => p.id === btn.dataset.id);
         if (row) navigator.clipboard.writeText(row.content).then(() => showToast("Copied to clipboard", "success"));
       });
     });
 
-    tbody.querySelectorAll(".btn-mark-posted").forEach(btn => {
+    tbody.querySelectorAll(".btn-post-x").forEach(btn => {
       btn.addEventListener("click", async (e) => {
         e.stopPropagation();
         const id = btn.dataset.id;
-        await db.collection("social-posts").doc(id).update({ status: "posted", postedAt: new Date().toISOString() });
         const post = socialPosts.find(p => p.id === id);
-        if (post) post.status = "posted";
+        if (!post) return;
+        btn.disabled = true;
+        btn.textContent = "Posting...";
+        try {
+          const token = await currentUser.getIdToken();
+          const resp = await fetch(`${FUNCTIONS_BASE}/postToX`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ postId: id, content: post.content }),
+          });
+          const data = await resp.json();
+          if (!resp.ok) throw new Error(data.error || "Failed to post");
+          post.status = "posted";
+          post.xTweetId = data.tweetId;
+          renderSocialStats();
+          renderSocialTable();
+          showToast("Posted to X successfully!", "success");
+        } catch (err) {
+          showToast("Failed to post to X: " + err.message, "error");
+          btn.disabled = false;
+          btn.textContent = "Post to X";
+        }
+      });
+    });
+
+    tbody.querySelectorAll(".btn-post-fb").forEach(btn => {
+      btn.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        const id = btn.dataset.id;
+        const post = socialPosts.find(p => p.id === id);
+        if (!post) return;
+        btn.disabled = true;
+        btn.textContent = "Posting...";
+        try {
+          const token = await currentUser.getIdToken();
+          const resp = await fetch(`${FUNCTIONS_BASE}/postToFacebook`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ postId: id, content: post.content }),
+          });
+          const data = await resp.json();
+          if (!resp.ok) throw new Error(data.error || "Failed to post");
+          post.status = "posted";
+          post.fbPostId = data.fbPostId;
+          renderSocialStats();
+          renderSocialTable();
+          showToast("Posted to Facebook successfully!", "success");
+        } catch (err) {
+          showToast("Failed to post to Facebook: " + err.message, "error");
+          btn.disabled = false;
+          btn.textContent = "Post to FB";
+        }
+      });
+    });
+
+    tbody.querySelectorAll(".btn-delete-post").forEach(btn => {
+      btn.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        if (!confirm("Delete this post?")) return;
+        const id = btn.dataset.id;
+        await db.collection("social-posts").doc(id).delete();
+        socialPosts = socialPosts.filter(p => p.id !== id);
         renderSocialStats();
         renderSocialTable();
-        showToast("Marked as posted", "success");
+        showToast("Post deleted", "success");
       });
     });
   }
@@ -841,9 +1044,13 @@
   // Save social config
   document.getElementById("btn-save-social-config").addEventListener("click", async () => {
     const platforms = [];
-    document.querySelectorAll("#social-config-panel .checkbox-row input:checked").forEach(cb => platforms.push(cb.value));
+    document.querySelectorAll("#social-config-panel .checkbox-row:first-of-type input:checked").forEach(cb => platforms.push(cb.value));
+    const schedulePlatforms = [];
+    document.querySelectorAll("#schedule-platforms input:checked").forEach(cb => schedulePlatforms.push(cb.value));
     const config = {
       platforms,
+      schedulePlatforms,
+      scheduleEnabled: document.getElementById("social-schedule-enabled").checked,
       topics: document.getElementById("social-config-topics").value.trim(),
       tone: document.getElementById("social-config-tone").value.trim(),
     };
@@ -875,8 +1082,27 @@
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed");
-      showToast(`Generated ${data.generated} posts across platforms`, "success");
-      loadSocialAgent();
+
+      // Build detailed summary
+      const summary = (data.results || []).map(r => {
+        if (r.error) return `${capitalize(r.platform)}: Failed`;
+        return `${capitalize(r.platform)}: ${r.posted ? "Posted!" : "Queued"} — "${(r.topic || "").slice(0, 40)}..."`;
+      }).join("\n");
+
+      const xPosted = (data.results || []).find(r => r.platform === "x" && r.posted);
+      const toastMsg = `Generated ${data.generated} posts` + (xPosted ? " — X auto-posted!" : "");
+      showToast(toastMsg, "success");
+
+      // Show run results summary
+      const outputEl = document.getElementById("social-output");
+      const textEl = document.getElementById("social-output-text");
+      textEl.value = `Run complete — ${data.generated} posts generated:\n\n${summary}`;
+      outputEl.style.display = "block";
+
+      await loadSocialAgent();
+
+      // Scroll to Content Library
+      document.getElementById("social-posts-table")?.closest(".card")?.scrollIntoView({ behavior: "smooth", block: "start" });
     } catch (err) {
       showToast(err.message || "Failed to run social agent", "error");
     } finally {
@@ -958,6 +1184,15 @@
       if (scoutConfig.subreddits) document.getElementById("scout-config-subreddits").value = scoutConfig.subreddits;
       if (scoutConfig.minScore) document.getElementById("scout-config-minscore").value = scoutConfig.minScore;
       if (scoutConfig.period) document.getElementById("scout-config-period").value = scoutConfig.period;
+      if (scoutConfig.scheduleEnabled !== undefined) {
+        document.getElementById("scout-schedule-enabled").checked = scoutConfig.scheduleEnabled;
+      }
+      if (scoutConfig.autoEngage !== undefined) {
+        document.getElementById("scout-auto-engage").checked = scoutConfig.autoEngage;
+      }
+      if (scoutConfig.emailAlerts !== undefined) {
+        document.getElementById("scout-email-alerts").checked = scoutConfig.emailAlerts;
+      }
       if (scoutConfig.lastRun) {
         const d = new Date(scoutConfig.lastRun);
         document.getElementById("scout-last-run").textContent = "Last run: " + d.toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
@@ -1003,7 +1238,7 @@
       const statusClass = o.status === "engaged" ? "badge-closed-won" : o.status === "dismissed" ? "badge-closed-lost" : "badge-new";
       const date = o.discoveredAt ? new Date(o.discoveredAt).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "--";
       const sourceLabel = o.subreddit ? `r/${o.subreddit}` : capitalize(o.source || "manual");
-      return `<tr data-id="${o.id}">
+      return `<tr data-id="${o.id}" style="cursor:pointer">
         <td>${esc(sourceLabel)}</td>
         <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(summary)}</td>
         <td>${esc(analysis.loanType || "--")}</td>
@@ -1011,26 +1246,176 @@
         <td><span class="badge ${statusClass}">${capitalize(o.status || "new")}</span></td>
         <td>${date}</td>
         <td>
-          ${o.url ? `<a href="${esc(o.url)}" target="_blank" class="btn btn-secondary btn-sm" style="text-decoration:none">View</a>` : ""}
-          ${o.status === "new" ? `<button class="btn btn-sm btn-engage-row" data-id="${o.id}" style="background:var(--accent);color:#fff;border:none;margin-left:4px">Engage</button>` : ""}
+          ${o.url ? `<a href="${esc(o.url)}" target="_blank" class="btn btn-secondary btn-sm" style="text-decoration:none" onclick="event.stopPropagation()">Source</a>` : ""}
+          <button class="btn btn-sm btn-view-opp" data-id="${o.id}" style="background:var(--accent);color:#fff;border:none;margin-left:4px">Details</button>
         </td>
       </tr>`;
     }).join("");
 
-    tbody.querySelectorAll(".btn-engage-row").forEach(btn => {
+    // Click row to open detail
+    tbody.querySelectorAll("tr").forEach(tr => {
+      tr.addEventListener("click", () => openScoutDetail(tr.dataset.id));
+    });
+    tbody.querySelectorAll(".btn-view-opp").forEach(btn => {
       btn.addEventListener("click", (e) => {
         e.stopPropagation();
-        const opp = scoutOpps.find(o => o.id === btn.dataset.id);
-        if (opp) {
-          // Switch to engagement agent with context pre-filled
-          switchView("agent-engage");
-          document.getElementById("engage-platform").value = opp.source || "reddit";
-          document.getElementById("engage-context").value = opp.description || opp.title || "";
-          lastAnalysisOppId = opp.id;
-        }
+        openScoutDetail(btn.dataset.id);
       });
     });
   }
+
+  // ===== SCOUT DETAIL PANEL =====
+  let currentScoutOppId = null;
+
+  function openScoutDetail(id) {
+    const opp = scoutOpps.find(o => o.id === id);
+    if (!opp) return;
+    currentScoutOppId = id;
+    const analysis = opp.analysis || {};
+
+    // Title
+    document.getElementById("scout-detail-title").textContent = opp.title || "Opportunity Details";
+
+    // Score
+    const scoreEl = document.getElementById("scout-detail-score");
+    scoreEl.textContent = opp.score || 0;
+    scoreEl.className = `lead-score ${opp.score >= 7 ? "score-hot" : opp.score >= 4 ? "score-warm" : "score-cold"}`;
+
+    // Loan type, source, status
+    document.getElementById("scout-detail-loantype").textContent = analysis.loanType || "--";
+    document.getElementById("scout-detail-source").textContent = opp.subreddit ? `r/${opp.subreddit}` : capitalize(opp.source || "unknown");
+    const statusEl = document.getElementById("scout-detail-status");
+    const statusClass = opp.status === "engaged" ? "badge-closed-won" : opp.status === "dismissed" ? "badge-closed-lost" : "badge-new";
+    statusEl.className = `badge ${statusClass}`;
+    statusEl.textContent = capitalize(opp.status || "new");
+
+    // Summary, approach
+    document.getElementById("scout-detail-summary").textContent = analysis.summary || "--";
+    document.getElementById("scout-detail-approach").textContent = analysis.approach || "--";
+
+    // Signals
+    document.getElementById("scout-detail-signals").innerHTML = (analysis.signals || [])
+      .map(s => `<span class="signal-tag">${esc(s)}</span>`).join("") || '<span style="color:var(--text-muted)">None</span>';
+
+    // Original post
+    document.getElementById("scout-detail-post").textContent = opp.description || opp.title || "--";
+
+    // Source link
+    const linkEl = document.getElementById("scout-detail-link");
+    if (opp.url) {
+      linkEl.href = opp.url;
+      linkEl.style.display = "inline-block";
+    } else {
+      linkEl.style.display = "none";
+    }
+
+    // Check for existing engagement draft
+    loadScoutDraft(id);
+
+    // Open panel
+    document.getElementById("scout-detail-overlay").classList.add("open");
+    document.getElementById("scout-detail-panel").classList.add("open");
+  }
+
+  async function loadScoutDraft(oppId) {
+    const draftSection = document.getElementById("scout-detail-draft-section");
+    try {
+      const snap = await db.collection("engagement-drafts")
+        .where("opportunityId", "==", oppId)
+        .limit(1)
+        .get();
+      if (!snap.empty) {
+        const draft = snap.docs[0].data();
+        document.getElementById("scout-detail-draft").value = draft.draft || "";
+        draftSection.style.display = "block";
+      } else {
+        draftSection.style.display = "none";
+      }
+    } catch {
+      draftSection.style.display = "none";
+    }
+  }
+
+  function closeScoutDetail() {
+    document.getElementById("scout-detail-overlay").classList.remove("open");
+    document.getElementById("scout-detail-panel").classList.remove("open");
+    currentScoutOppId = null;
+  }
+
+  document.getElementById("btn-close-scout-detail").addEventListener("click", closeScoutDetail);
+  document.getElementById("scout-detail-overlay").addEventListener("click", closeScoutDetail);
+
+  // Detail panel actions
+  document.getElementById("btn-scout-detail-engage").addEventListener("click", async () => {
+    if (!currentScoutOppId) return;
+    const opp = scoutOpps.find(o => o.id === currentScoutOppId);
+    if (!opp) return;
+
+    const btn = document.getElementById("btn-scout-detail-engage");
+    btn.disabled = true;
+    btn.textContent = "Drafting...";
+    try {
+      const token = await currentUser.getIdToken();
+      const res = await fetch(`${FUNCTIONS_BASE}/draftEngagement`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          platform: opp.source || "reddit",
+          context: opp.description || opp.title || "",
+          opportunityId: currentScoutOppId,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed");
+
+      document.getElementById("scout-detail-draft").value = data.draft;
+      document.getElementById("scout-detail-draft-section").style.display = "block";
+
+      // Update status
+      opp.status = "engaged";
+      const statusEl = document.getElementById("scout-detail-status");
+      statusEl.className = "badge badge-closed-won";
+      statusEl.textContent = "Engaged";
+      renderScoutStats();
+      renderScoutTable();
+      showToast("Engagement draft created", "success");
+    } catch (err) {
+      showToast("Failed to draft engagement", "error");
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "Draft Engagement";
+    }
+  });
+
+  document.getElementById("btn-scout-detail-dismiss").addEventListener("click", async () => {
+    if (!currentScoutOppId) return;
+    await db.collection("scout-opportunities").doc(currentScoutOppId).update({ status: "dismissed" });
+    const opp = scoutOpps.find(o => o.id === currentScoutOppId);
+    if (opp) opp.status = "dismissed";
+    closeScoutDetail();
+    renderScoutStats();
+    renderScoutTable();
+    showToast("Opportunity dismissed", "info");
+  });
+
+  document.getElementById("btn-scout-copy-draft").addEventListener("click", () => {
+    navigator.clipboard.writeText(document.getElementById("scout-detail-draft").value);
+    showToast("Draft copied to clipboard", "success");
+  });
+
+  document.getElementById("btn-scout-redraft").addEventListener("click", () => {
+    document.getElementById("btn-scout-detail-engage").click();
+  });
+
+  document.getElementById("btn-scout-engage-detail")?.addEventListener("click", () => {
+    // Open the source URL and copy the draft for easy pasting
+    const opp = scoutOpps.find(o => o.id === currentScoutOppId);
+    if (opp && opp.url) {
+      navigator.clipboard.writeText(document.getElementById("scout-detail-draft").value);
+      window.open(opp.url, "_blank");
+      showToast("Draft copied — paste it on the source post", "success");
+    }
+  });
 
   // Scout config toggle
   document.getElementById("scout-config-toggle").addEventListener("click", () => {
@@ -1045,6 +1430,9 @@
       subreddits: document.getElementById("scout-config-subreddits").value.trim(),
       minScore: document.getElementById("scout-config-minscore").value,
       period: document.getElementById("scout-config-period").value,
+      scheduleEnabled: document.getElementById("scout-schedule-enabled").checked,
+      autoEngage: document.getElementById("scout-auto-engage").checked,
+      emailAlerts: document.getElementById("scout-email-alerts").checked,
     };
     try {
       const token = await currentUser.getIdToken();

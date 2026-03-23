@@ -1,18 +1,28 @@
 // Umbrella Place Cloud Functions — v2
 const { onDocumentCreated } = require("firebase-functions/v2/firestore");
 const { onRequest } = require("firebase-functions/v2/https");
+const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { initializeApp, cert } = require("firebase-admin/app");
 const admin = require("firebase-admin");
 const nodemailer = require("nodemailer");
 const { google } = require("googleapis");
 const { defineString } = require("firebase-functions/params");
 const Anthropic = require("@anthropic-ai/sdk");
+const { TwitterApi } = require("twitter-api-v2");
 
 initializeApp();
 
 const gmailUser = defineString("GMAIL_USER");
 const gmailPass = defineString("GMAIL_APP_PASSWORD");
 const sheetId = defineString("GOOGLE_SHEET_ID");
+const xApiKey = defineString("X_API_KEY");
+const xApiSecret = defineString("X_API_SECRET");
+const xAccessToken = defineString("X_ACCESS_TOKEN");
+const xAccessSecret = defineString("X_ACCESS_SECRET");
+const xOAuth2Token = defineString("X_OAUTH2_TOKEN");
+const fbPageId = defineString("FB_PAGE_ID");
+const fbPageToken = defineString("FB_PAGE_TOKEN");
+const fbWebhookVerifyToken = defineString("FB_WEBHOOK_VERIFY_TOKEN");
 
 // --- Lead Scoring Algorithm ---
 function scoreLead(data) {
@@ -764,7 +774,8 @@ RULES:
 - Focus on education, value, and thought leadership
 - Include subtle brand mentions without being overly promotional
 - Write content that real estate investors would want to share
-- ${platformGuide[platform] || "Write platform-appropriate content."}`,
+- ${platformGuide[platform] || "Write platform-appropriate content."}
+- Output ONLY the post text itself. No titles, labels, headers, or platform names like "Facebook Post:" — just the raw content ready to publish.`,
         messages: [{
           role: "user",
           content: `Generate a ${platform} post about: ${topic}\nTone: ${tone || "professional and educational"}`,
@@ -969,14 +980,24 @@ exports.runSocialAgent = onRequest(
       // Load config
       const configDoc = await admin.firestore().collection("agent-config").doc("social").get();
       const config = configDoc.exists ? configDoc.data() : {};
+
+      const defaultTopics = [
+        "Benefits of bridge loans for time-sensitive deals",
+        "How DSCR loans let you qualify without W2s",
+        "Fix and flip financing: what new investors should know",
+        "Why private lending is faster than traditional banks",
+        "BRRRR strategy explained for rental investors",
+        "New construction loans: phased draws and how they work",
+        "Hard money vs. conventional: when to use each",
+        "Real estate investing mistakes to avoid in 2026",
+        "How to evaluate a fix and flip deal (the 70% rule)",
+        "Private lending myths debunked",
+      ];
+
       const topics = (config.topics || "").split("\n").map(t => t.trim()).filter(Boolean);
+      if (topics.length === 0) topics.push(...defaultTopics);
       const platforms = config.platforms || ["linkedin", "facebook", "instagram", "x"];
       const toneNotes = config.tone || "Professional and educational";
-
-      if (topics.length === 0) {
-        res.status(400).json({ error: "No topics configured. Add topics in the configuration panel." });
-        return;
-      }
 
       const client = new Anthropic({ apiKey: anthropicKey.value() });
       const results = [];
@@ -996,15 +1017,42 @@ exports.runSocialAgent = onRequest(
           const response = await client.messages.create({
             model: "claude-sonnet-4-20250514",
             max_tokens: 600,
-            system: `You are the social media content creator for Umbrella Place, a private real estate loan brokerage. Create engaging, educational content about real estate investing and private lending.\n\nBRAND VOICE: ${toneNotes}\n\nABOUT: Private real estate loan brokerage, 50+ lenders, bridge/fix-flip/construction/DSCR loans, close in 7-14 days, no upfront fees, 48 states. Founded by Zachary Smith and Cole Smith.\n\nRULES: Never quote specific rates. Focus on education and value. Subtle brand mentions. ${platformGuide[platform] || "Write platform-appropriate content."}`,
+            system: `You are the social media content creator for Umbrella Place, a private real estate loan brokerage. Create engaging, educational content about real estate investing and private lending.\n\nBRAND VOICE: ${toneNotes}\n\nABOUT: Private real estate loan brokerage, 50+ lenders, bridge/fix-flip/construction/DSCR loans, close in 7-14 days, no upfront fees, 48 states. Founded by Zachary Smith and Cole Smith.\n\nRULES: Never quote specific rates. Focus on education and value. Subtle brand mentions. ${platformGuide[platform] || "Write platform-appropriate content."}\n\nIMPORTANT: Output ONLY the post text. No titles, labels, headers, or platform names like "Facebook Post:" — just the raw content ready to publish.`,
             messages: [{ role: "user", content: `Generate a ${platform} post about: ${topic}\nTone: ${toneNotes}` }],
           });
           const content = response.content[0]?.text || "";
+          let status = "queued";
+          let xTweetId = null;
+          let fbPostId = null;
+
+          // Auto-publish to X
+          if (platform === "x") {
+            const tweetText = content.length > 280 ? content.slice(0, 277) + "..." : content;
+            try {
+              xTweetId = await postTweet(tweetText);
+              status = "posted";
+            } catch (xErr) {
+              console.error("Auto-post to X failed:", xErr.message);
+            }
+          }
+
+          // Auto-publish to Facebook
+          if (platform === "facebook") {
+            try {
+              fbPostId = await postToFB(content);
+              status = "posted";
+            } catch (fbErr) {
+              console.error("Auto-post to Facebook failed:", fbErr.message);
+            }
+          }
+
           const doc = await admin.firestore().collection("social-posts").add({
             platform, topic, tone: toneNotes, content,
-            status: "queued", generatedAt: new Date().toISOString(), generatedBy: "social-agent-batch",
+            status, generatedAt: new Date().toISOString(), generatedBy: "social-agent-batch",
+            ...(xTweetId && { xTweetId, postedAt: new Date().toISOString() }),
+            ...(fbPostId && { fbPostId, postedAt: new Date().toISOString() }),
           });
-          results.push({ platform, topic, postId: doc.id });
+          results.push({ platform, topic, postId: doc.id, posted: status === "posted" });
         } catch (genErr) {
           console.error(`Social agent: failed for ${platform}:`, genErr.message);
           results.push({ platform, topic, error: genErr.message });
@@ -1041,15 +1089,25 @@ exports.runScoutAgent = onRequest(
     try {
       const configDoc = await admin.firestore().collection("agent-config").doc("scout").get();
       const config = configDoc.exists ? configDoc.data() : {};
-      const keywords = (config.keywords || "").split("\n").map(k => k.trim()).filter(Boolean);
-      const subreddits = (config.subreddits || "").split("\n").map(s => s.trim()).filter(Boolean);
+      const configKeywords = (config.keywords || "").split("\n").map(k => k.trim()).filter(Boolean);
+      const configSubreddits = (config.subreddits || "").split("\n").map(s => s.trim()).filter(Boolean);
       const minScore = parseInt(config.minScore) || 5;
       const period = config.period || "week";
 
-      if (keywords.length === 0 || subreddits.length === 0) {
-        res.status(400).json({ error: "Configure keywords and subreddits first." });
-        return;
-      }
+      // Default keywords and subreddits for real estate lending leads
+      const defaultKeywords = [
+        "hard money loan", "bridge loan real estate", "fix and flip financing",
+        "private lender", "DSCR loan", "construction loan investor",
+        "need funding for flip", "real estate loan help", "private money lender",
+        "cash out refinance investor",
+      ];
+      const defaultSubreddits = [
+        "realestateinvesting", "fixandflip", "commercialrealestate",
+        "realestate", "RealEstateInvesting", "personalfinance", "smallbusiness",
+      ];
+
+      const keywords = configKeywords.length > 0 ? configKeywords : defaultKeywords;
+      const subreddits = configSubreddits.length > 0 ? configSubreddits : defaultSubreddits;
 
       // Get existing opportunity URLs to avoid duplicates
       const existingSnap = await admin.firestore().collection("scout-opportunities")
@@ -1229,6 +1287,579 @@ exports.runEngagementAgent = onRequest(
       console.error("Run engagement agent error:", err);
       res.status(500).json({ error: "Failed to run engagement agent" });
     }
+  }
+);
+
+// ===== POST TO X (TWITTER) =====
+function getXClient() {
+  return new TwitterApi({
+    appKey: xApiKey.value(),
+    appSecret: xApiSecret.value(),
+    accessToken: xAccessToken.value(),
+    accessSecret: xAccessSecret.value(),
+  });
+}
+
+async function postTweet(text) {
+  // Try OAuth 2.0 user token first (Pay Per Use tier — more reliable)
+  try {
+    const oauth2Client = new TwitterApi(xOAuth2Token.value());
+    const tweet = await oauth2Client.v2.tweet(text);
+    console.log("Tweet posted via OAuth 2.0");
+    return tweet.data.id;
+  } catch (oauth2Err) {
+    console.error("OAuth 2.0 tweet failed:", oauth2Err.message);
+  }
+
+  // Fallback to OAuth 1.0a (Free tier)
+  try {
+    const oauth1Client = getXClient();
+    const tweet = await oauth1Client.v2.tweet(text);
+    console.log("Tweet posted via OAuth 1.0a");
+    return tweet.data.id;
+  } catch (oauth1Err) {
+    console.error("OAuth 1.0a tweet also failed:", oauth1Err.message);
+    throw oauth1Err;
+  }
+}
+
+exports.postToX = onRequest(
+  { cors: ALLOWED_ORIGINS },
+  async (req, res) => {
+    if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
+    try { await verifyAuth(req); } catch (e) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+    const { postId, content } = req.body;
+    if (!content) {
+      res.status(400).json({ error: "Content is required" });
+      return;
+    }
+
+    try {
+      // Truncate to 280 chars for X
+      const tweetText = content.length > 280 ? content.slice(0, 277) + "..." : content;
+      const tweetId = await postTweet(tweetText);
+
+      // Update Firestore doc if postId provided
+      if (postId) {
+        await admin.firestore().collection("social-posts").doc(postId).update({
+          status: "posted",
+          postedAt: new Date().toISOString(),
+          xTweetId: tweetId,
+        });
+      }
+
+      await admin.firestore().collection("agent-activity").add({
+        agent: "social", action: "post-to-x",
+        details: `Posted tweet: ${content.substring(0, 80)}...`,
+        tweetId,
+        timestamp: new Date().toISOString(),
+      });
+
+      res.status(200).json({ success: true, tweetId });
+    } catch (err) {
+      console.error("Post to X error:", err.message, err.data || "");
+      res.status(500).json({ error: err.message || "Failed to post to X" });
+    }
+  }
+);
+
+// ===== POST TO FACEBOOK =====
+async function postToFB(message) {
+  const url = `https://graph.facebook.com/v21.0/${fbPageId.value()}/feed`;
+  const resp = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message, access_token: fbPageToken.value() }),
+  });
+  const data = await resp.json();
+  if (data.error) throw new Error(data.error.message);
+  return data.id; // returns "{page_id}_{post_id}"
+}
+
+exports.postToFacebook = onRequest(
+  { cors: ALLOWED_ORIGINS },
+  async (req, res) => {
+    if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
+    try { await verifyAuth(req); } catch (e) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+    const { postId, content } = req.body;
+    if (!content) { res.status(400).json({ error: "Content is required" }); return; }
+
+    try {
+      const fbPostId = await postToFB(content);
+
+      if (postId) {
+        await admin.firestore().collection("social-posts").doc(postId).update({
+          status: "posted",
+          postedAt: new Date().toISOString(),
+          fbPostId,
+        });
+      }
+
+      await admin.firestore().collection("agent-activity").add({
+        agent: "social", action: "post-to-facebook",
+        details: `Posted to Facebook: ${content.substring(0, 80)}...`,
+        fbPostId,
+        timestamp: new Date().toISOString(),
+      });
+
+      res.status(200).json({ success: true, fbPostId });
+    } catch (err) {
+      console.error("Post to Facebook error:", err.message);
+      res.status(500).json({ error: err.message || "Failed to post to Facebook" });
+    }
+  }
+);
+
+// ===== SCHEDULED AUTO-POSTING =====
+// Runs every day at 9 AM and 3 PM Eastern (14:00 and 20:00 UTC)
+exports.scheduledSocialPost = onSchedule(
+  { schedule: "0 14,20 * * *", timeZone: "America/New_York", timeoutSeconds: 120 },
+  async () => {
+    try {
+      // Load config
+      const configDoc = await admin.firestore().collection("agent-config").doc("social").get();
+      const config = configDoc.exists ? configDoc.data() : {};
+
+      // Check if scheduling is enabled
+      if (!config.scheduleEnabled) {
+        console.log("Scheduled posting disabled, skipping.");
+        return;
+      }
+
+      const topics = (config.topics || "").split("\n").map(t => t.trim()).filter(Boolean);
+      const toneNotes = config.tone || "Professional but approachable";
+      const schedulePlatforms = (config.schedulePlatforms || ["facebook"]).filter(Boolean);
+
+      const defaultTopics = [
+        "Benefits of bridge loans for time-sensitive deals",
+        "How to evaluate a fix and flip deal (the 70% rule)",
+        "DSCR loans explained for rental property investors",
+        "Why private lending is faster than traditional banks",
+        "Real estate investing mistakes to avoid",
+        "Fix and flip financing: what new investors should know",
+        "How to build a real estate investment portfolio",
+        "New construction loans: what to expect",
+        "Cash-out refinance strategies for investors",
+        "Why speed matters in competitive real estate markets",
+      ];
+      const topicPool = topics.length > 0 ? topics : defaultTopics;
+
+      const platformGuide = {
+        facebook: "Facebook: Conversational, 2-4 sentences. Question or CTA for engagement. 1-2 hashtags max.",
+        linkedin: "LinkedIn: Professional tone, 1-3 paragraphs, line breaks for readability. Call-to-action. 3-5 hashtags at the end.",
+        instagram: "Instagram: Visual storytelling caption. Hook first. Short paragraphs. CTA. 10-15 hashtags at end.",
+        x: "X (Twitter): Under 280 characters. Punchy, direct. 1-2 hashtags max.",
+      };
+
+      // Pick one platform per scheduled run
+      const platform = schedulePlatforms[Math.floor(Math.random() * schedulePlatforms.length)];
+      const topic = topicPool[Math.floor(Math.random() * topicPool.length)];
+
+      const client = new Anthropic({ apiKey: anthropicKey.value() });
+      const response = await client.messages.create({
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 600,
+        system: `You are the social media content creator for Umbrella Place, a private real estate loan brokerage. Create engaging, educational content about real estate investing and private lending.\n\nBRAND VOICE: ${toneNotes}\n\nABOUT: Private real estate loan brokerage, 50+ lenders, bridge/fix-flip/construction/DSCR loans, close in 7-14 days, no upfront fees, 48 states. Founded by Zachary Smith and Cole Smith.\n\nRULES: Never quote specific rates. Focus on education and value. Subtle brand mentions. ${platformGuide[platform] || "Write platform-appropriate content."}\n\nIMPORTANT: Output ONLY the post text. No titles, labels, headers, or platform names like "Facebook Post:" — just the raw content ready to publish.`,
+        messages: [{ role: "user", content: `Generate a ${platform} post about: ${topic}\nTone: ${toneNotes}` }],
+      });
+
+      const content = response.content[0]?.text || "";
+      let status = "queued";
+      let fbPostId = null;
+
+      // Auto-publish to Facebook
+      if (platform === "facebook") {
+        try {
+          fbPostId = await postToFB(content);
+          status = "posted";
+        } catch (fbErr) {
+          console.error("Scheduled FB post failed:", fbErr.message);
+        }
+      }
+
+      // Save to Firestore
+      await admin.firestore().collection("social-posts").add({
+        platform, topic, tone: toneNotes, content,
+        status, generatedAt: new Date().toISOString(), generatedBy: "scheduled",
+        ...(fbPostId && { fbPostId, postedAt: new Date().toISOString() }),
+      });
+
+      // Log activity
+      await admin.firestore().collection("agent-activity").add({
+        agent: "social", action: "scheduled-post",
+        details: `Scheduled ${platform} post: ${topic.slice(0, 50)}... — ${status}`,
+        timestamp: new Date().toISOString(),
+      });
+
+      // Update last run
+      await admin.firestore().collection("agent-config").doc("social").set(
+        { lastScheduledRun: new Date().toISOString() }, { merge: true }
+      );
+
+      console.log(`Scheduled post: ${platform} — ${status} — ${topic}`);
+    } catch (err) {
+      console.error("Scheduled social post error:", err);
+    }
+  }
+);
+
+// ===== SCHEDULED LEAD SCOUT =====
+// Runs every 6 hours to find new leads on Reddit
+exports.scheduledLeadScout = onSchedule(
+  { schedule: "0 */6 * * *", timeZone: "America/New_York", timeoutSeconds: 300 },
+  async () => {
+    try {
+      const configDoc = await admin.firestore().collection("agent-config").doc("scout").get();
+      const config = configDoc.exists ? configDoc.data() : {};
+
+      if (config.scheduleEnabled === false) {
+        console.log("Scheduled scout disabled, skipping.");
+        return;
+      }
+
+      // Use same logic as runScoutAgent but without auth
+      const keywords = (config.keywords || "").split("\n").map(k => k.trim()).filter(Boolean);
+      const subreddits = (config.subreddits || "").split("\n").map(s => s.trim()).filter(Boolean);
+
+      // Default keywords and subreddits (same as in runScoutAgent)
+      const defaultKeywords = [
+        "hard money loan", "bridge loan real estate", "fix and flip financing",
+        "private lender", "DSCR loan", "construction loan investor",
+        "need funding for flip", "real estate loan help", "private money lender",
+        "cash out refinance investor",
+      ];
+      const defaultSubreddits = [
+        "realestateinvesting", "fixandflip", "commercialrealestate",
+        "realestate", "RealEstateInvesting", "personalfinance", "smallbusiness",
+      ];
+
+      const activeKeywords = keywords.length > 0 ? keywords : defaultKeywords;
+      const activeSubs = subreddits.length > 0 ? subreddits : defaultSubreddits;
+      const minScore = parseInt(config.minScore) || 5;
+
+      // Get existing URLs to avoid duplicates
+      const existingSnap = await admin.firestore().collection("scout-opportunities")
+        .orderBy("discoveredAt", "desc").limit(200).get();
+      const existingUrls = new Set(existingSnap.docs.map(d => d.data().url).filter(Boolean));
+
+      const client = new Anthropic({ apiKey: anthropicKey.value() });
+      let found = 0;
+
+      // Pick 3 random keyword/subreddit combos
+      const combos = [];
+      for (const sub of activeSubs) {
+        for (const kw of activeKeywords) {
+          combos.push({ sub, kw });
+        }
+      }
+      for (let i = combos.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [combos[i], combos[j]] = [combos[j], combos[i]];
+      }
+      const selectedCombos = combos.slice(0, 3);
+
+      for (const { sub, kw } of selectedCombos) {
+        try {
+          const redditUrl = `https://www.reddit.com/r/${encodeURIComponent(sub)}/search.json?q=${encodeURIComponent(kw)}&sort=new&limit=5&t=day&restrict_sr=on`;
+          const redditRes = await fetch(redditUrl, {
+            headers: { "User-Agent": "UmbrellaPlace/1.0 (lead-scout)" },
+          });
+          if (!redditRes.ok) continue;
+          const redditData = await redditRes.json();
+          const posts = (redditData.data?.children || []).filter(p => p.kind === "t3");
+
+          for (const post of posts) {
+            const data = post.data;
+            const postUrl = `https://www.reddit.com${data.permalink}`;
+            if (existingUrls.has(postUrl)) continue;
+            existingUrls.add(postUrl);
+
+            const postText = `Title: ${data.title}\n\n${(data.selftext || "").slice(0, 1000)}`;
+            const analysisRes = await client.messages.create({
+              model: "claude-sonnet-4-20250514",
+              max_tokens: 400,
+              system: `You are a lead intelligence analyst for Umbrella Place, a private real estate loan brokerage. Analyze this Reddit post to determine if the poster could be a lead for private lending (bridge, fix & flip, construction, DSCR).\n\nScore 1-10 (10 = highly likely to need private lending soon). Respond in JSON:\n{"score": <number>, "loanType": "<type>", "summary": "<1-2 sentences>", "approach": "<how to engage>", "signals": ["<signal1>", "<signal2>"]}`,
+              messages: [{ role: "user", content: `Analyze for lead potential:\n\nSubreddit: r/${sub}\nPost: ${postText}` }],
+            });
+
+            let analysis;
+            try {
+              analysis = JSON.parse(analysisRes.content[0]?.text || "{}");
+            } catch {
+              analysis = { score: 0, summary: "Could not analyze", loanType: "unknown", approach: "", signals: [] };
+            }
+
+            if (analysis.score >= minScore) {
+              await admin.firestore().collection("scout-opportunities").add({
+                source: "reddit", subreddit: sub, url: postUrl,
+                title: data.title, description: postText,
+                author: data.author, analysis,
+                score: analysis.score || 0, status: "new",
+                discoveredAt: new Date().toISOString(), addedBy: "scheduled-scout",
+              });
+              found++;
+            }
+          }
+        } catch (scanErr) {
+          console.error(`Scheduled scout: error scanning r/${sub} for "${kw}":`, scanErr.message);
+        }
+      }
+
+      // Also auto-draft engagement for high-scoring new leads (respects config)
+      const autoEngage = config.autoEngage !== false; // default true
+      const emailAlerts = config.emailAlerts !== false; // default true
+      if (found > 0 && autoEngage) {
+        const newOpps = await admin.firestore().collection("scout-opportunities")
+          .where("status", "==", "new")
+          .orderBy("score", "desc")
+          .limit(5)
+          .get();
+
+        for (const doc of newOpps.docs) {
+          const opp = doc.data();
+          if (opp.score < 7) continue;
+          try {
+            const response = await client.messages.create({
+              model: "claude-sonnet-4-20250514",
+              max_tokens: 400,
+              system: `You are Zachary Smith, Managing Partner at Umbrella Place (private real estate loan brokerage). Draft a response to engage a potential lead found on Reddit.\n\nEXPERTISE: Bridge loans, fix & flip, construction, DSCR rental loans. 50+ lenders, close in 7-14 days, no upfront fees, 48 states.\n\nTONE: Reddit-appropriate: helpful, not salesy. Answer with genuine expertise. Mention private lending only if directly relevant. Never link-drop. Sound like a real person.\n\nRULES: Lead with value. Never spammy. Concise (2-3 paragraphs max). Never quote specific rates.`,
+              messages: [{ role: "user", content: `Draft a helpful Reddit response for:\n\n${(opp.description || opp.title || "").slice(0, 1500)}` }],
+            });
+            const draft = response.content[0]?.text || "";
+            await admin.firestore().collection("engagement-drafts").add({
+              opportunityId: doc.id, platform: "reddit",
+              context: (opp.description || "").slice(0, 500),
+              draft, status: "pending",
+              oppUrl: opp.url || "", oppTitle: opp.title || "",
+              createdAt: new Date().toISOString(), createdBy: "scheduled-scout",
+            });
+            await admin.firestore().collection("scout-opportunities").doc(doc.id).update({ status: "engaged" });
+
+            // Send email alert for high-scoring lead
+            if (emailAlerts) try {
+              const alertTransporter = nodemailer.createTransport({
+                service: "gmail",
+                auth: { user: gmailUser.value(), pass: gmailPass.value() },
+              });
+              await alertTransporter.sendMail({
+                from: `"Umbrella Place Bot" <${gmailUser.value()}>`,
+                to: "zachary@umbrellaplace.com",
+                subject: `🎯 New Lead Found (Score ${opp.score}/10) — ${(opp.analysis?.loanType || "Real Estate")}`,
+                html: `
+                  <div style="font-family:Arial,sans-serif;max-width:600px">
+                    <h2 style="color:#1a4d8f">New Lead Discovered</h2>
+                    <p><strong>Score:</strong> ${opp.score}/10</p>
+                    <p><strong>Loan Type:</strong> ${opp.analysis?.loanType || "Unknown"}</p>
+                    <p><strong>Summary:</strong> ${opp.analysis?.summary || ""}</p>
+                    <p><strong>Approach:</strong> ${opp.analysis?.approach || ""}</p>
+                    <hr style="border:1px solid #eee">
+                    <p><strong>Post:</strong> ${(opp.title || "").slice(0, 200)}</p>
+                    <p style="color:#666;font-size:0.9em">${(opp.description || "").slice(0, 500)}</p>
+                    <hr style="border:1px solid #eee">
+                    <h3>Draft Response (copy & paste):</h3>
+                    <div style="background:#f5f5f5;padding:12px;border-radius:8px;white-space:pre-wrap">${draft}</div>
+                    <br>
+                    <a href="${opp.url}" style="display:inline-block;padding:12px 24px;background:#1a4d8f;color:#fff;text-decoration:none;border-radius:6px;font-weight:bold">Open Reddit Post →</a>
+                    <br><br>
+                    <p style="color:#999;font-size:0.8em">Sent by Umbrella Place Lead Scout Agent</p>
+                  </div>
+                `,
+              });
+            } catch (emailErr) {
+              console.error("Lead alert email failed:", emailErr.message);
+            }
+          } catch (e) {
+            console.error("Scheduled engagement draft error:", e.message);
+          }
+        }
+      }
+
+      await admin.firestore().collection("agent-activity").add({
+        agent: "scout", action: "scheduled-scan",
+        details: `Scheduled scan: ${selectedCombos.length} combos, found ${found} leads`,
+        timestamp: new Date().toISOString(),
+      });
+
+      await admin.firestore().collection("agent-config").doc("scout").set(
+        { lastScheduledRun: new Date().toISOString() }, { merge: true }
+      );
+
+      console.log(`Scheduled scout: scanned ${selectedCombos.length} combos, found ${found} leads`);
+    } catch (err) {
+      console.error("Scheduled lead scout error:", err);
+    }
+  }
+);
+
+// ===== FACEBOOK WEBHOOK (comments + messages) =====
+exports.facebookWebhook = onRequest(
+  { cors: true },
+  async (req, res) => {
+    // Webhook verification (GET request from Facebook)
+    if (req.method === "GET") {
+      const mode = req.query["hub.mode"];
+      const token = req.query["hub.verify_token"];
+      const challenge = req.query["hub.challenge"];
+      if (mode === "subscribe" && token === fbWebhookVerifyToken.value()) {
+        console.log("Facebook webhook verified");
+        res.status(200).send(challenge);
+      } else {
+        res.status(403).send("Verification failed");
+      }
+      return;
+    }
+
+    // Process webhook events (POST request)
+    if (req.method !== "POST") { res.status(405).send("Method not allowed"); return; }
+
+    const body = req.body;
+    if (body.object !== "page") { res.status(200).send("OK"); return; }
+
+    const client = new Anthropic({ apiKey: anthropicKey.value() });
+
+    for (const entry of (body.entry || [])) {
+      // Handle comments
+      for (const change of (entry.changes || [])) {
+        if (change.field === "feed" && change.value?.item === "comment" && change.value?.verb === "add") {
+          const comment = change.value;
+          // Don't reply to our own comments
+          if (comment.from?.id === fbPageId.value()) continue;
+
+          try {
+            // Generate AI reply
+            const aiResp = await client.messages.create({
+              model: "claude-sonnet-4-20250514",
+              max_tokens: 200,
+              system: "You are a helpful social media manager for Umbrella Place, a private real estate loan brokerage. Reply to this Facebook comment on our page. Be friendly, helpful, and concise (1-3 sentences). If they're asking about loans, invite them to DM or visit umbrellaplace.com. Never quote specific rates. Sound natural, not corporate.",
+              messages: [{ role: "user", content: `Comment on our post: "${comment.message || ""}"` }],
+            });
+            const replyText = aiResp.content[0]?.text || "";
+
+            // Post reply via Graph API
+            const commentId = comment.comment_id;
+            const replyUrl = `https://graph.facebook.com/v21.0/${commentId}/comments`;
+            await fetch(replyUrl, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ message: replyText, access_token: fbPageToken.value() }),
+            });
+
+            // Log it
+            await admin.firestore().collection("agent-activity").add({
+              agent: "facebook", action: "auto-comment-reply",
+              details: `Replied to comment by ${comment.from?.name || "unknown"}: "${(comment.message || "").slice(0, 80)}..."`,
+              reply: replyText,
+              timestamp: new Date().toISOString(),
+            });
+
+            console.log("Auto-replied to FB comment:", commentId);
+          } catch (commentErr) {
+            console.error("FB comment reply error:", commentErr.message);
+          }
+        }
+      }
+
+      // Handle Messenger messages
+      for (const messagingEvent of (entry.messaging || [])) {
+        if (!messagingEvent.message || messagingEvent.message.is_echo) continue;
+
+        const senderId = messagingEvent.sender?.id;
+        const messageText = messagingEvent.message?.text || "";
+        if (!senderId || !messageText) continue;
+
+        try {
+          // Check if we've already responded to this person recently (avoid spam)
+          const recentReplies = await admin.firestore().collection("messenger-conversations")
+            .where("senderId", "==", senderId)
+            .orderBy("lastMessageAt", "desc")
+            .limit(1)
+            .get();
+
+          let conversationHistory = "";
+          let conversationRef = null;
+          if (!recentReplies.empty) {
+            const conv = recentReplies.docs[0].data();
+            conversationHistory = conv.history || "";
+            conversationRef = recentReplies.docs[0].ref;
+          }
+
+          // Generate AI response
+          const aiResp = await client.messages.create({
+            model: "claude-sonnet-4-20250514",
+            max_tokens: 300,
+            system: `You are Zachary Smith, Managing Partner at Umbrella Place (private real estate loan brokerage). You're responding to a Facebook Messenger conversation.
+
+ABOUT: Private real estate loan brokerage, 50+ lenders, bridge/fix-flip/construction/DSCR loans, close in 7-14 days, no upfront fees, 48 states.
+
+RULES:
+- Be warm, professional, and helpful
+- If they ask about loans, ask about their property type, location, loan amount, and timeline
+- Try to get their phone number or email for follow-up
+- If they seem like a real lead, invite them to fill out the form at umbrellaplace.com or call (850) 706-0145
+- Never quote specific rates
+- Keep responses concise (2-4 sentences)
+- Sound like a real person, not a bot`,
+            messages: [
+              ...(conversationHistory ? [{ role: "user", content: `Previous conversation:\n${conversationHistory}\n\nNew message:` }] : []),
+              { role: "user", content: messageText },
+            ],
+          });
+
+          const replyText = aiResp.content[0]?.text || "";
+
+          // Send reply via Messenger API
+          const messengerUrl = `https://graph.facebook.com/v21.0/${fbPageId.value()}/messages`;
+          const msgResp = await fetch(messengerUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              recipient: { id: senderId },
+              message: { text: replyText },
+              access_token: fbPageToken.value(),
+            }),
+          });
+          const msgData = await msgResp.json();
+          if (msgData.error) {
+            console.error("Messenger send error:", msgData.error.message);
+          }
+
+          // Save/update conversation
+          const historyUpdate = (conversationHistory ? conversationHistory + "\n" : "") +
+            `User: ${messageText}\nAssistant: ${replyText}`;
+
+          if (conversationRef) {
+            await conversationRef.update({
+              history: historyUpdate.slice(-3000),
+              lastMessageAt: new Date().toISOString(),
+              messageCount: admin.firestore.FieldValue.increment(1),
+            });
+          } else {
+            await admin.firestore().collection("messenger-conversations").add({
+              senderId, history: historyUpdate,
+              lastMessageAt: new Date().toISOString(),
+              messageCount: 1, status: "active",
+              startedAt: new Date().toISOString(),
+            });
+          }
+
+          // Log activity
+          await admin.firestore().collection("agent-activity").add({
+            agent: "messenger", action: "auto-reply",
+            details: `Messenger reply to ${senderId}: "${messageText.slice(0, 80)}..."`,
+            reply: replyText,
+            timestamp: new Date().toISOString(),
+          });
+
+          console.log("Auto-replied to Messenger:", senderId);
+        } catch (msgErr) {
+          console.error("Messenger reply error:", msgErr.message);
+        }
+      }
+    }
+
+    res.status(200).send("OK");
   }
 );
 

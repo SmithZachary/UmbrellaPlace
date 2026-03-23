@@ -1,0 +1,13 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "messenger-conversations",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "senderId", "order": "ASCENDING" },
+        { "fieldPath": "lastMessageAt", "order": "ASCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

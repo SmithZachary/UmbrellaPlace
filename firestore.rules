@@ -22,6 +22,37 @@ service cloud.firestore {
       allow read, write: if isAdmin();
     }
 
+    // Social agent posts — admins only
+    match /social-posts/{docId} {
+      allow read, write: if isAdmin();
+    }
+
+    // Agent configuration — admins only
+    match /agent-config/{docId} {
+      allow read, write: if isAdmin();
+    }
+
+    // Agent activity logs — admins only
+    match /agent-activity/{docId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    // Scout opportunities — admins only
+    match /scout-opportunities/{docId} {
+      allow read, write: if isAdmin();
+    }
+
+    // Engagement drafts — admins only
+    match /engagement-drafts/{docId} {
+      allow read, write: if isAdmin();
+    }
+
+    // Messenger conversations — admins only
+    match /messenger-conversations/{docId} {
+      allow read, write: if isAdmin();
+    }
+
     // Deny everything else by default
     match /{document=**} {
       allow read, write: if false;

@@ -412,6 +412,21 @@
             </div>
           </div>
 
+          <!-- Post Calendar -->
+          <div class="card" style="margin-top:1rem">
+            <div class="card-header">
+              <h3>Post Calendar</h3>
+              <div style="display:flex;align-items:center;gap:0.5rem">
+                <button class="btn btn-secondary btn-sm" id="cal-prev">&larr;</button>
+                <span id="cal-month-label" style="font-weight:600;min-width:140px;text-align:center"></span>
+                <button class="btn btn-secondary btn-sm" id="cal-next">&rarr;</button>
+              </div>
+            </div>
+            <div class="card-body" style="padding:0.75rem">
+              <div class="social-calendar" id="social-calendar"></div>
+            </div>
+          </div>
+
           <!-- Configuration -->
           <div class="card" style="margin-top:1rem">
             <div class="card-header config-toggle" id="social-config-toggle">
@@ -426,7 +441,7 @@
                     <label class="checkbox-label"><input type="checkbox" value="linkedin" checked /> LinkedIn</label>
                     <label class="checkbox-label"><input type="checkbox" value="facebook" checked /> Facebook</label>
                     <label class="checkbox-label"><input type="checkbox" value="instagram" checked /> Instagram</label>
-                    <label class="checkbox-label"><input type="checkbox" value="x" checked /> X (Twitter)</label>
+                    <label class="checkbox-label"><input type="checkbox" value="x" /> X (Twitter) <span style="color:var(--warning);font-size:0.75rem">— API down</span></label>
                     <label class="checkbox-label"><input type="checkbox" value="substack" /> Substack</label>
                   </div>
                 </div>
@@ -446,6 +461,21 @@ Private lending myths debunked"></textarea>
                 <div class="agent-form-group" style="margin-top:0.75rem">
                   <label>Tone / Voice Notes</label>
                   <input type="text" id="social-config-tone" class="filter-input" style="width:100%" value="Professional, educational, approachable — position as trusted guide for investors" />
+                </div>
+                <div style="margin-top:1rem;padding-top:0.75rem;border-top:1px solid var(--border)">
+                  <label style="font-weight:600;margin-bottom:0.5rem;display:block">Auto-Post Schedule</label>
+                  <div style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap">
+                    <label class="checkbox-label"><input type="checkbox" id="social-schedule-enabled" /> Enable scheduled auto-posting</label>
+                  </div>
+                  <div style="margin-top:0.5rem">
+                    <label style="font-size:0.85rem">Schedule platforms:</label>
+                    <div class="checkbox-row" id="schedule-platforms">
+                      <label class="checkbox-label"><input type="checkbox" value="facebook" checked /> Facebook</label>
+                      <label class="checkbox-label"><input type="checkbox" value="linkedin" /> LinkedIn</label>
+                      <label class="checkbox-label"><input type="checkbox" value="instagram" /> Instagram</label>
+                    </div>
+                    <p style="font-size:0.8rem;color:var(--text-secondary);margin-top:0.25rem">Posts auto-publish at 9 AM and 3 PM ET daily (one post per run). Only Facebook auto-publishes — others save as drafts.</p>
+                  </div>
                 </div>
                 <div style="margin-top:0.75rem">
                   <button class="btn btn-primary btn-sm" id="btn-save-social-config">Save Configuration</button>
@@ -635,6 +665,15 @@ landlords"></textarea>
                     </select>
                   </div>
                 </div>
+                <div style="margin-top:1rem;padding-top:0.75rem;border-top:1px solid var(--border)">
+                  <label style="font-weight:600;margin-bottom:0.5rem;display:block">Auto-Scout Schedule</label>
+                  <label class="checkbox-label"><input type="checkbox" id="scout-schedule-enabled" checked /> Enable scheduled lead scanning (every 6 hours)</label>
+                  <p style="font-size:0.8rem;color:var(--text-secondary);margin-top:0.25rem">Automatically scans Reddit every 6 hours. High-scoring leads (7+) get engagement drafts auto-generated and emailed to you.</p>
+                  <div style="margin-top:0.5rem">
+                    <label class="checkbox-label"><input type="checkbox" id="scout-auto-engage" checked /> Auto-draft engagement for leads scoring 7+</label>
+                    <label class="checkbox-label"><input type="checkbox" id="scout-email-alerts" checked /> Email alerts for new high-scoring leads</label>
+                  </div>
+                </div>
                 <div style="margin-top:0.75rem">
                   <button class="btn btn-primary btn-sm" id="btn-save-scout-config">Save Configuration</button>
                 </div>
@@ -737,6 +776,71 @@ landlords"></textarea>
                 <div class="empty-state-icon">&#128269;</div>
                 <h4>No opportunities yet</h4>
                 <p>Click "Run Scan" to search Reddit or paste a conversation to analyze manually.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Scout Opportunity Detail Panel -->
+          <div class="detail-overlay" id="scout-detail-overlay"></div>
+          <div class="detail-panel" id="scout-detail-panel">
+            <div class="detail-header">
+              <h3 id="scout-detail-title">Opportunity Details</h3>
+              <button class="btn-close-detail" id="btn-close-scout-detail">&times;</button>
+            </div>
+            <div class="detail-body">
+              <div class="detail-section">
+                <div style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap">
+                  <div>
+                    <span style="font-size:0.7rem;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-muted)">Score</span>
+                    <div><span class="lead-score" id="scout-detail-score" style="font-size:1.5rem">--</span><span style="color:var(--text-muted)"> / 10</span></div>
+                  </div>
+                  <div>
+                    <span style="font-size:0.7rem;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-muted)">Loan Type</span>
+                    <div id="scout-detail-loantype" style="font-weight:600;font-size:1.1rem">--</div>
+                  </div>
+                  <div>
+                    <span style="font-size:0.7rem;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-muted)">Source</span>
+                    <div id="scout-detail-source" style="font-weight:600;font-size:1.1rem">--</div>
+                  </div>
+                  <div>
+                    <span style="font-size:0.7rem;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-muted)">Status</span>
+                    <div><span class="badge" id="scout-detail-status">--</span></div>
+                  </div>
+                </div>
+              </div>
+              <div class="detail-section">
+                <h4>AI Summary</h4>
+                <p id="scout-detail-summary" style="font-size:0.9rem;line-height:1.6">--</p>
+              </div>
+              <div class="detail-section">
+                <h4>Suggested Approach</h4>
+                <p id="scout-detail-approach" style="font-size:0.9rem;line-height:1.6">--</p>
+              </div>
+              <div class="detail-section">
+                <h4>Signals</h4>
+                <div id="scout-detail-signals" style="display:flex;flex-wrap:wrap;gap:0.35rem"></div>
+              </div>
+              <div class="detail-section">
+                <h4>Original Post</h4>
+                <div id="scout-detail-post" style="background:var(--border-light);padding:1rem;border-radius:var(--radius);font-size:0.85rem;line-height:1.7;white-space:pre-wrap;max-height:300px;overflow-y:auto">--</div>
+                <div style="margin-top:0.75rem">
+                  <a id="scout-detail-link" href="#" target="_blank" class="btn btn-primary btn-sm" style="text-decoration:none">Open Original Post &rarr;</a>
+                </div>
+              </div>
+              <div class="detail-section" id="scout-detail-draft-section" style="display:none">
+                <h4>Engagement Draft</h4>
+                <textarea id="scout-detail-draft" class="reply-textarea" style="min-height:120px"></textarea>
+                <div class="reply-actions" style="margin-top:0.75rem">
+                  <button class="btn btn-secondary btn-sm" id="btn-scout-copy-draft">Copy</button>
+                  <button class="btn btn-primary btn-sm" id="btn-scout-redraft">Regenerate</button>
+                  <button class="btn btn-primary btn-sm" id="btn-scout-engage-detail" style="background:var(--success)">Draft Response</button>
+                </div>
+              </div>
+              <div class="detail-section" style="border-top:1px solid var(--border);padding-top:0.75rem">
+                <div class="reply-actions">
+                  <button class="btn btn-primary btn-sm" id="btn-scout-detail-engage">Draft Engagement</button>
+                  <button class="btn btn-secondary btn-sm" id="btn-scout-detail-dismiss">Dismiss</button>
+                </div>
               </div>
             </div>
           </div>
