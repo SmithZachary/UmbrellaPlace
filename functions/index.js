@@ -1055,6 +1055,8 @@ exports.generateFloorPlan = onRequest(
       const stories = property.stories || 1;
       const condition = property.condition || "Average";
       const yearBuilt = property.yearBuilt || 0;
+      const style = property.style || (yearBuilt > 1990 ? "open" : "traditional");
+      const hasGarage = property.hasGarage !== false;
 
       // Compute target footprint
       const sqftPerFloor = Math.round(sqft / stories);
@@ -1088,13 +1090,14 @@ ROOM SIZE GUIDELINES (width x depth in feet):
 - Foyer/Entry: 8x6 (at bottom center of plan, connects to living)
 - Hallway: 4ft wide, connects bedrooms
 - Pantry: 4x6 (off kitchen)
-${yearBuilt > 1990 ? "- Open concept: kitchen/dining/living flow together with shared walls" : "- Traditional layout: separate rooms with defined walls"}
+${hasGarage ? "- Garage: 20x22 (attached to side, NOT counted in house sqft)" : "- No garage"}
+${style === "open" ? "- OPEN CONCEPT: kitchen, dining, and living room share one large open space. Use a single large room or place them side-by-side with shared walls, no hallway separating them." : style === "ranch" ? "- RANCH STYLE: single story, all rooms on one level, long and wide footprint, bedrooms on one wing" : style === "colonial" ? "- COLONIAL: formal layout, center hallway, dining room and living room flanking entry, bedrooms upstairs" : "- TRADITIONAL: separate defined rooms with walls between kitchen/dining/living"}
 
 PLACEMENT STRATEGY (work top to bottom):
 Row 1 (top/back): Master suite + secondary bedrooms + bathrooms + closets
 Row 2 (middle): Hallway connecting bedrooms to living areas
 Row 3 (bottom/front): Living room + kitchen + dining + entry/foyer
-Garage: attached to left or right side
+${hasGarage ? "Garage: attached to left or right side of house" : ""}
 
 Return ONLY valid JSON, no other text:
 {
@@ -1124,10 +1127,12 @@ Return ONLY valid JSON, no other text:
 - Property: ${type}, ${property.address || "residential"}
 - ${sqft} sqft total${stories > 1 ? " (" + sqftPerFloor + " sqft per floor, " + stories + " stories)" : ""}
 - ${beds} bedrooms, ${baths} bathrooms
+- Style: ${style === "open" ? "Open concept" : style === "ranch" ? "Ranch" : style === "colonial" ? "Colonial" : "Traditional"}
+- ${hasGarage ? "Attached garage" : "No garage"}
 - ${condition} condition${yearBuilt ? ", built ~" + yearBuilt : ""}
 - Target footprint: ~${targetWidth}ft wide x ${targetDepth}ft deep
 
-IMPORTANT: Place rooms so they share walls with no gaps. Start with the largest rooms, then fill in smaller rooms. Every inch of the ${targetWidth}x${targetDepth} rectangle should be accounted for. Include ${beds > 2 ? "a master closet, a pantry, and a laundry room" : "a closet and laundry area"}.`
+IMPORTANT: Place rooms so they share walls with no gaps. Start with the largest rooms, then fill in smaller rooms. Every inch of the ${targetWidth}x${targetDepth} rectangle should be accounted for. Include ${beds > 2 ? "a master closet, a pantry, and a laundry room" : "a closet and laundry area"}.${hasGarage ? " Place the garage attached to the left or right side." : ""}`
           }
         ]
       });

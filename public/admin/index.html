@@ -1708,11 +1708,33 @@ landlords"></textarea>
                       </div>
                     </div>
                     <div id="pm-floorplan-container" style="flex:1;min-height:460px;display:flex;align-items:center;justify-content:center;overflow:auto;background:#fafbfc;position:relative">
-                      <div id="pm-fp-empty" style="text-align:center;color:var(--text-muted);padding:2rem;font-size:0.85rem">
-                    <div style="font-size:2.5rem;margin-bottom:0.75rem">🏠</div>
-                    <p style="margin-bottom:1rem">No floor plan yet for this property.</p>
-                    <button class="btn btn-primary btn-sm" id="pm-btn-generate-fp">Generate Floor Plan with AI</button>
-                    <p style="font-size:0.75rem;margin-top:0.5rem;color:#94a3b8">Creates a layout based on beds, baths, and square footage</p>
+                      <div id="pm-fp-empty" style="text-align:center;color:var(--text-muted);padding:1.5rem;font-size:0.85rem;max-width:420px;margin:0 auto">
+                    <div style="font-size:2.5rem;margin-bottom:0.5rem">🏠</div>
+                    <p style="margin-bottom:0.75rem;font-weight:600;color:#374151">Generate a Floor Plan</p>
+                    <p style="font-size:0.8rem;margin-bottom:1rem">Confirm property details for the most accurate layout:</p>
+                    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.4rem;text-align:left;margin-bottom:0.75rem">
+                      <div class="deal-form-group"><label style="font-size:0.7rem">Beds</label><input type="number" id="pm-gen-beds" style="padding:0.3rem;font-size:0.85rem" /></div>
+                      <div class="deal-form-group"><label style="font-size:0.7rem">Baths</label><input type="number" step="0.5" id="pm-gen-baths" style="padding:0.3rem;font-size:0.85rem" /></div>
+                      <div class="deal-form-group"><label style="font-size:0.7rem">Sq Ft</label><input type="number" id="pm-gen-sqft" style="padding:0.3rem;font-size:0.85rem" /></div>
+                    </div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.4rem;text-align:left;margin-bottom:0.75rem">
+                      <div class="deal-form-group"><label style="font-size:0.7rem">Stories</label>
+                        <select id="pm-gen-stories" style="padding:0.3rem;font-size:0.85rem;width:100%"><option value="1">1 Story</option><option value="2">2 Stories</option></select>
+                      </div>
+                      <div class="deal-form-group"><label style="font-size:0.7rem">Style</label>
+                        <select id="pm-gen-style" style="padding:0.3rem;font-size:0.85rem;width:100%">
+                          <option value="open">Open Concept</option><option value="traditional">Traditional</option><option value="ranch">Ranch</option><option value="colonial">Colonial</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.4rem;text-align:left;margin-bottom:1rem">
+                      <div class="deal-form-group"><label style="font-size:0.7rem">Has Garage?</label>
+                        <select id="pm-gen-garage" style="padding:0.3rem;font-size:0.85rem;width:100%"><option value="yes">Yes</option><option value="no">No</option></select>
+                      </div>
+                      <div class="deal-form-group"><label style="font-size:0.7rem">Year Built</label><input type="number" id="pm-gen-year" style="padding:0.3rem;font-size:0.85rem" placeholder="2000" /></div>
+                    </div>
+                    <button class="btn btn-primary" id="pm-btn-generate-fp" style="width:100%;padding:0.5rem">Generate Floor Plan with AI</button>
+                    <p style="font-size:0.7rem;margin-top:0.5rem;color:#94a3b8">Takes ~15 seconds. You can edit rooms after.</p>
                   </div>
                       <svg id="pm-fp-svg" style="display:none"></svg>
                     </div>

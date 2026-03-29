@@ -4248,12 +4248,86 @@
     setPmEditUI(false);
 
     if (!fp || !fp.rooms || !fp.rooms.length) {
-      svg.style.display = "none"; empty.style.display = ""; pmFp = null; return;
+      svg.style.display = "none"; empty.style.display = ""; pmFp = null;
+      // Pre-fill the generate form from property data
+      var p = deal.property || {};
+      var gBeds = document.getElementById("pm-gen-beds");
+      var gBaths = document.getElementById("pm-gen-baths");
+      var gSqft = document.getElementById("pm-gen-sqft");
+      var gStories = document.getElementById("pm-gen-stories");
+      var gYear = document.getElementById("pm-gen-year");
+      if (gBeds) gBeds.value = p.beds || "";
+      if (gBaths) gBaths.value = p.baths || "";
+      if (gSqft) gSqft.value = p.sqft || "";
+      if (gStories) gStories.value = p.stories || "1";
+      if (gYear) gYear.value = p.yearBuilt || "";
+      // Wire up generate button (fresh each time to avoid stale closures)
+      var btn = document.getElementById("pm-btn-generate-fp");
+      if (btn) {
+        var newBtn = btn.cloneNode(true);
+        btn.parentNode.replaceChild(newBtn, btn);
+        newBtn.addEventListener("click", function() { generatePmFloorPlan(); });
+      }
+      return;
     }
     pmFp = JSON.parse(JSON.stringify(fp));
     empty.style.display = "none"; svg.style.display = "";
     document.getElementById("pm-fp-floor").style.display = fp.stories > 1 ? "" : "none";
     drawPmFloorPlan();
+  }
+
+  async function generatePmFloorPlan() {
+    if (!pmCurrentId) return;
+    var deal = allDeals.find(function(d) { return d.id === pmCurrentId; });
+    if (!deal) return;
+    var p = deal.property || {};
+    if (!p.address) { showToast("Add an address in Property Details first", "error"); return; }
+
+    // Read values from the generate form (user may have adjusted)
+    var beds = parseInt(document.getElementById("pm-gen-beds").value) || p.beds || 3;
+    var baths = parseFloat(document.getElementById("pm-gen-baths").value) || p.baths || 2;
+    var sqft = parseInt(document.getElementById("pm-gen-sqft").value) || p.sqft || 1500;
+    var stories = parseInt(document.getElementById("pm-gen-stories").value) || 1;
+    var style = document.getElementById("pm-gen-style").value || "open";
+    var garage = document.getElementById("pm-gen-garage").value || "yes";
+    var yearBuilt = parseInt(document.getElementById("pm-gen-year").value) || p.yearBuilt || 0;
+
+    // Also save updated values back to property
+    deal.property.beds = beds;
+    deal.property.baths = baths;
+    deal.property.sqft = sqft;
+    deal.property.stories = stories;
+    deal.property.yearBuilt = yearBuilt;
+
+    var genProperty = Object.assign({}, p, { beds: beds, baths: baths, sqft: sqft, stories: stories, yearBuilt: yearBuilt, style: style, hasGarage: garage === "yes" });
+
+    var btn = document.getElementById("pm-btn-generate-fp");
+    if (btn) { btn.disabled = true; btn.textContent = "Generating... (~15s)"; }
+    try {
+      var token = await currentUser.getIdToken();
+      var res = await fetch(FUNCTIONS_BASE + "/generateFloorPlan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
+        body: JSON.stringify({ property: genProperty })
+      });
+      var data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Generation failed");
+      deal.floorPlan = data.floorPlan;
+      await db.collection("deal-analyzer").doc(pmCurrentId).update({
+        floorPlan: data.floorPlan,
+        "property.beds": beds, "property.baths": baths, "property.sqft": sqft,
+        "property.stories": stories, "property.yearBuilt": yearBuilt,
+        updatedAt: new Date().toISOString()
+      });
+      renderPmFloorPlan(deal);
+      populatePmRoomDropdowns(deal);
+      renderPmHouseInfo(deal);
+      showToast("Floor plan generated — click Edit to customize", "success");
+    } catch (err) {
+      console.error("PM floor plan error:", err);
+      showToast("Failed to generate: " + err.message, "error");
+      if (btn) { btn.disabled = false; btn.textContent = "Generate Floor Plan with AI"; }
+    }
   }
 
   function setPmEditUI(on) {
@@ -4599,37 +4673,7 @@
     finally { btn.disabled = false; btn.textContent = "Save"; }
   });
 
-  // Generate floor plan from Properties tab
-  document.getElementById("pm-btn-generate-fp").addEventListener("click", async function() {
-    if (!pmCurrentId) return;
-    var deal = allDeals.find(function(d) { return d.id === pmCurrentId; });
-    if (!deal) return;
-    var p = deal.property || {};
-    if (!p.address) { showToast("Add an address first in Property Details", "error"); return; }
-
-    var btn = document.getElementById("pm-btn-generate-fp");
-    btn.disabled = true; btn.textContent = "Generating...";
-    try {
-      var token = await currentUser.getIdToken();
-      var res = await fetch(FUNCTIONS_BASE + "/generateFloorPlan", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
-        body: JSON.stringify({ property: p })
-      });
-      var data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Generation failed");
-      deal.floorPlan = data.floorPlan;
-      await db.collection("deal-analyzer").doc(pmCurrentId).update({
-        floorPlan: data.floorPlan, updatedAt: new Date().toISOString()
-      });
-      renderPmFloorPlan(deal);
-      populatePmRoomDropdowns(deal);
-      showToast("Floor plan generated — click Edit to customize", "success");
-    } catch (err) {
-      console.error("PM floor plan error:", err);
-      showToast("Failed to generate: " + err.message, "error");
-    } finally { btn.disabled = false; btn.textContent = "Generate Floor Plan with AI"; }
-  });
+  // Generate floor plan handler is wired up dynamically inside renderPmFloorPlan()
 
   // Populate room dropdowns from floor plan
   function populatePmRoomDropdowns(deal) {
@@ -5007,7 +5051,7 @@
         monthlyRent: parseInt(document.getElementById("pm-new-rent").value) || 0,
         arv: parseInt(document.getElementById("pm-new-arv").value) || 0,
       },
-      status: "closing",
+      status: "prospecting",
       propertyMgmt: { managed: true, items: [], maintenance: [] },
       financials: {},
       checklists: {},
@@ -5029,7 +5073,22 @@
       ["pm-new-address","pm-new-city","pm-new-state","pm-new-zip","pm-new-beds","pm-new-baths","pm-new-sqft","pm-new-year","pm-new-purchase","pm-new-rent","pm-new-arv"].forEach(function(id) { document.getElementById(id).value = ""; });
       document.getElementById("pm-add-property-panel").style.display = "none";
       renderPropertyList();
-      showToast("Property created — open it to add floor plan and details", "success");
+
+      // Ask if they want it in Deal Analyzer for AI analysis
+      var addToDa = confirm("Property created!\n\nWould you like to analyze this deal in the Deal Analyzer?\nThis will run AI scoring, comps, and financial analysis.");
+      if (addToDa) {
+        // Switch to Deal Analyzer and open the deal
+        document.querySelectorAll(".nav-item").forEach(function(n) { n.classList.remove("active"); });
+        var dealNav = document.querySelector('.nav-item[data-view="deal-analyzer"]');
+        if (dealNav) dealNav.classList.add("active");
+        document.querySelectorAll(".view").forEach(function(v) { v.classList.remove("active"); });
+        document.getElementById("view-deal-analyzer").classList.add("active");
+        document.getElementById("topbar-title").textContent = "Deal Analyzer";
+        openDealDetail(newDeal.id);
+        showToast("Open the deal and click Re-analyze to run AI analysis", "success");
+      } else {
+        showToast("Property created — open it to add floor plan and details", "success");
+      }
     } catch (err) {
       console.error("Create property error:", err);
       showToast("Failed to create property", "error");
