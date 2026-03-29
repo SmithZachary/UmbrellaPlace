@@ -80,6 +80,7 @@ async function verifyAdmin(req) {
   if (!authHeader || !authHeader.startsWith("Bearer ")) throw new Error("Unauthorized");
   const token = authHeader.split("Bearer ")[1];
   const decoded = await admin.auth().verifyIdToken(token);
+  if (decoded.admin === true) return decoded;
   if (!ADMIN_UIDS.includes(decoded.uid)) throw new Error("Forbidden: not an admin");
   return decoded;
 }
@@ -939,10 +940,15 @@ exports.analyzeDeal = onRequest(
     if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
     try { await verifyAdmin(req); } catch (e) { res.status(401).json({ error: "Unauthorized" }); return; }
 
-    const { property, dealId } = req.body;
+    const { property, dealId, assumptions: bodyAssumptions } = req.body;
     if (!property || !property.address) {
       res.status(400).json({ error: "At minimum a property address is required" });
       return;
+    }
+
+    let assumptionsBlock = "";
+    if (bodyAssumptions && typeof bodyAssumptions === "object" && Object.keys(bodyAssumptions).length) {
+      assumptionsBlock = `\n\nUNDERWRITING ASSUMPTIONS (use these instead of your defaults for calculations and narrative where applicable):\n${JSON.stringify(bodyAssumptions, null, 0)}`;
     }
 
     try {
@@ -950,7 +956,7 @@ exports.analyzeDeal = onRequest(
       const response = await client.messages.create({
         model: AI_MODEL,
         max_tokens: 3000,
-        system: `You are an experienced real estate investment analyst with deep knowledge of US housing markets, rental rates, rehab costs, and comparable sales. The user may provide incomplete data — some fields may be missing, zero, or "N/A". When data is missing, USE YOUR MARKET KNOWLEDGE to estimate reasonable values based on the address, property type, condition, and local market. Always note which values you estimated vs what was provided.
+        system: `You are an experienced real estate investment analyst with deep knowledge of US housing markets, rental rates, rehab costs, and comparable sales. The user may provide incomplete data — some fields may be missing, zero, or "N/A". When data is missing, USE YOUR MARKET KNOWLEDGE to estimate reasonable values based on the address, property type, condition, and local market. Always note which values you estimated vs what was provided.${assumptionsBlock ? " When underwriting assumptions are provided, align vacancy, maintenance, management, closing costs, tax/insurance treatment, and financing placeholders with those numbers." : ""}
 
 Return ONLY valid JSON in this exact format:
 {
@@ -987,10 +993,10 @@ Return ONLY valid JSON in this exact format:
   "summary": "<A thorough 3-5 paragraph executive summary of this deal written for an experienced investor. Cover: (1) Property overview and what makes it interesting or not, (2) Financial breakdown — purchase price vs ARV, rehab scope, the 70% rule verdict, expected profit or cash flow, (3) Comparable properties and how this deal stacks up, (4) Key risks and what to watch for, (5) Bottom line recommendation — buy, pass, or negotiate, with a suggested offer price and reasoning. Write in a direct, professional tone. Include specific dollar amounts and percentages throughout.>"
 }
 
-Assumptions: closing costs ~3% buy, ~8% sell (flips). Hard money ~11% IO during rehab (6mo hold). DSCR rate ~7.5% 30yr. Vacancy 7%, maintenance 8%, management 9%. Insurance ~$150/mo. Taxes ~1.2% ARV/yr. Use provided values when available, estimate when missing. Be conservative — real investors want honest, cautious numbers.`,
+Assumptions: closing costs ~3% buy, ~8% sell (flips). Hard money ~11% IO during rehab (6mo hold). DSCR rate ~7.5% 30yr. Vacancy 7%, maintenance 8%, management 9%. Insurance ~$150/mo. Taxes ~1.2% ARV/yr. Use provided values when available, estimate when missing. Be conservative — real investors want honest, cautious numbers.${assumptionsBlock ? " Prefer the user's underwriting assumptions over these defaults when both apply." : ""}`,
         messages: [{
           role: "user",
-          content: `Analyze this deal:\nAddress: ${property.address || "N/A"}, ${property.city || ""}, ${property.state || ""} ${property.zip || ""}\nType: ${property.type || "N/A"}\nStrategy: ${property.strategy || "N/A"}\nPurchase Price: ${property.purchasePrice ? "$" + property.purchasePrice : "Unknown — estimate based on market"}\nRehab Cost: ${property.rehabCost ? "$" + property.rehabCost : "Unknown — estimate based on condition"}\nARV: ${property.arv ? "$" + property.arv : "Unknown — estimate based on comps"}\nMonthly Rent: ${property.monthlyRent ? "$" + property.monthlyRent : "Unknown — estimate market rate"}\nCondition: ${property.condition || "Unknown"}\nSqft: ${property.sqft || "Unknown"} | Beds: ${property.beds || "Unknown"} | Baths: ${property.baths || "Unknown"}\nYear Built: ${property.yearBuilt || "Unknown"}\nSource: ${property.source || "N/A"}\nNotes: ${property.notes || "None"}`
+          content: `Analyze this deal:\nAddress: ${property.address || "N/A"}, ${property.city || ""}, ${property.state || ""} ${property.zip || ""}\nType: ${property.type || "N/A"}\nStrategy: ${property.strategy || "N/A"}\nPurchase Price: ${property.purchasePrice ? "$" + property.purchasePrice : "Unknown — estimate based on market"}\nRehab Cost: ${property.rehabCost ? "$" + property.rehabCost : "Unknown — estimate based on condition"}\nARV: ${property.arv ? "$" + property.arv : "Unknown — estimate based on comps"}\nMonthly Rent: ${property.monthlyRent ? "$" + property.monthlyRent : "Unknown — estimate market rate"}\nCondition: ${property.condition || "Unknown"}\nSqft: ${property.sqft || "Unknown"} | Beds: ${property.beds || "Unknown"} | Baths: ${property.baths || "Unknown"}\nYear Built: ${property.yearBuilt || "Unknown"}\nSource: ${property.source || "N/A"}\nNotes: ${property.notes || "None"}${assumptionsBlock}`
         }]
       });
 
@@ -1021,7 +1027,11 @@ Assumptions: closing costs ~3% buy, ~8% sell (flips). Hard money ~11% IO during 
           status: "prospecting",
           activityLog: [],
           contacts: [],
-          financials: { rehabLineItems: [], monthlyExpenses: {} },
+          financials: {
+            rehabLineItems: [],
+            monthlyExpenses: {},
+            assumptions: bodyAssumptions && typeof bodyAssumptions === "object" ? bodyAssumptions : {},
+          },
           documents: [],
           keyDates: {},
           createdAt: new Date().toISOString(),
@@ -1036,6 +1046,76 @@ Assumptions: closing costs ~3% buy, ~8% sell (flips). Hard money ~11% IO during 
   }
 );
 
+// ===== FLOOR PLAN HELPERS (strict rectangle geometry) =====
+function fpRectsOverlap(a, b) {
+  return a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
+}
+
+function normalizeFloorPlanRooms(floorPlan, targetW, targetH, stories) {
+  if (!floorPlan.rooms || !Array.isArray(floorPlan.rooms)) return floorPlan;
+  floorPlan.dimensions = { width: targetW, height: targetH };
+  floorPlan.stories = stories;
+  if (!floorPlan.doors) floorPlan.doors = [];
+  floorPlan.rooms.forEach((room, i) => {
+    room.x = Math.max(0, Math.round(room.x || 0));
+    room.y = Math.max(0, Math.round(room.y || 0));
+    room.width = Math.max(3, Math.round(room.width || 10));
+    room.height = Math.max(3, Math.round(room.height || 10));
+    const fl = Math.min(stories, Math.max(1, Math.round(room.floor || 1)));
+    room.floor = fl;
+    room.type = String(room.type || "living").toLowerCase();
+    if (room.type === "garage" || room.type === "porch") room.countedInSqft = false;
+    else if (room.countedInSqft === undefined) room.countedInSqft = true;
+    room.name = room.name || "Room";
+    room.features = Array.isArray(room.features) ? room.features : [];
+    if (!room.id) room.id = "room-" + (i + 1) + "-" + Math.random().toString(36).slice(2, 8);
+  });
+  if (floorPlan.rooms.length > 50) floorPlan.rooms = floorPlan.rooms.slice(0, 50);
+  return floorPlan;
+}
+
+function validateFloorPlanGeometry(floorPlan, sqftPerFloor, stories, W, H) {
+  const errors = [];
+  if (!floorPlan.rooms || !floorPlan.rooms.length) {
+    errors.push("No rooms array or empty.");
+    return { ok: false, errors };
+  }
+  for (let f = 1; f <= stories; f++) {
+    const rooms = floorPlan.rooms.filter((r) => (r.floor || 1) === f);
+    if (!rooms.length) {
+      errors.push(`Floor ${f}: no rooms on this floor (need ${stories} floor(s)).`);
+      continue;
+    }
+    for (const a of rooms) {
+      if (a.x + a.width > W) errors.push(`Floor ${f}: "${a.name || a.id}" extends past east edge (${a.x}+${a.width}>${W}).`);
+      if (a.y + a.height > H) errors.push(`Floor ${f}: "${a.name || a.id}" extends past south edge (${a.y}+${a.height}>${H}).`);
+    }
+    for (let i = 0; i < rooms.length; i++) {
+      for (let j = i + 1; j < rooms.length; j++) {
+        const A = rooms[i];
+        const B = rooms[j];
+        if (fpRectsOverlap(A, B)) errors.push(`Floor ${f}: overlap between "${A.name}" and "${B.name}".`);
+      }
+    }
+    let area = 0;
+    for (const r of rooms) {
+      if (r.countedInSqft !== false) area += r.width * r.height;
+    }
+    const minA = Math.round(sqftPerFloor * 0.88);
+    const maxA = Math.round(sqftPerFloor * 1.12);
+    if (area < minA || area > maxA) {
+      errors.push(`Floor ${f}: counted interior area ${area} sf (expected ${minA}–${maxA} for ~${sqftPerFloor} sf/floor). Mark garage/porch with countedInSqft false.`);
+    }
+  }
+  return { ok: errors.length === 0, errors };
+}
+
+function parseFloorPlanFromAiText(text) {
+  const jsonMatch = (text || "").match(/\{[\s\S]*\}/);
+  if (!jsonMatch) throw new Error("No JSON in AI response");
+  return JSON.parse(jsonMatch[0]);
+}
+
 // ===== FLOOR PLAN GENERATOR =====
 exports.generateFloorPlan = onRequest(
   { cors: ALLOWED_ORIGINS, timeoutSeconds: 120 },
@@ -1043,7 +1123,7 @@ exports.generateFloorPlan = onRequest(
     if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
     try { await verifyAdmin(req); } catch (e) { res.status(401).json({ error: "Unauthorized" }); return; }
 
-    const { property } = req.body;
+    const { property, constraints = {} } = req.body;
     if (!property) { res.status(400).json({ error: "Property data required" }); return; }
 
     try {
@@ -1052,125 +1132,122 @@ exports.generateFloorPlan = onRequest(
       const beds = property.beds || 3;
       const baths = property.baths || 2;
       const type = property.type || "Single Family";
-      const stories = property.stories || 1;
+      const stories = Math.min(3, Math.max(1, parseInt(property.stories, 10) || parseInt(constraints.stories, 10) || 1));
       const condition = property.condition || "Average";
       const yearBuilt = property.yearBuilt || 0;
-      const style = property.style || (yearBuilt > 1990 ? "open" : "traditional");
-      const hasGarage = property.hasGarage !== false;
+      const style = property.style || constraints.style || (yearBuilt > 1990 ? "open" : "traditional");
+      const hasGarage = constraints.hasGarage === false ? false : property.hasGarage !== false;
+      const garageSide = constraints.garageSide || property.garageSide || "right";
+      const openConcept = constraints.openConcept === true || style === "open";
+      const layoutNotes = [constraints.layoutNotes, property.layoutNotes].filter(Boolean).join("\n\n");
 
-      // Compute target footprint
       const sqftPerFloor = Math.round(sqft / stories);
-      const targetWidth = Math.round(Math.sqrt(sqftPerFloor * 1.4)); // ~1.4:1 aspect ratio
+      const targetWidth = Math.round(Math.sqrt(sqftPerFloor * 1.4));
       const targetDepth = Math.round(sqftPerFloor / targetWidth);
+      const W = targetWidth;
+      const H = targetDepth;
 
-      const response = await client.messages.create({
-        model: AI_MODEL,
-        max_tokens: 4000,
-        system: `You are an expert residential architect. Generate a floor plan as JSON. Coordinates use a grid where (0,0) is the top-left corner. X increases rightward, Y increases downward. All values are in feet (integers only).
+      const styleHint = openConcept
+        ? "OPEN CONCEPT: prefer one combined living+dining+kitchen zone OR adjacent rectangles that share full edges (no gaps)."
+        : style === "ranch"
+          ? "RANCH: single story; bedrooms often on one wing; long footprint."
+          : style === "colonial"
+            ? "COLONIAL: upstairs bedrooms if stories=2; stair hall; formal front rooms."
+            : "TRADITIONAL: separate kitchen, dining, living with shared walls.";
 
-CRITICAL LAYOUT RULES:
-1. The house footprint must be roughly ${targetWidth}ft wide x ${targetDepth}ft deep (rectangular or L-shaped).
-2. Every room must share at least one wall with another room — NO floating rooms with gaps between them.
-3. Rooms must tile together like a puzzle. Adjacent rooms share exact coordinates on their shared edge (e.g., if Room A ends at x=20, the next room starts at x=20).
-4. NO overlapping rooms. Check: for any two rooms, their rectangles must not intersect.
-5. The sum of all room areas must be between ${Math.round(sqftPerFloor * 0.9)} and ${Math.round(sqftPerFloor * 1.1)} sqft per floor.
-6. Closets go INSIDE or directly adjacent to bedrooms (share a wall).
-7. Bathrooms share walls with bedrooms when possible.
+      const garageHint = hasGarage
+        ? `Include a garage rectangle INSIDE the ${W}x${H} footprint, type \"garage\", countedInSqft false. Place garage on the ${garageSide} side (west=left=x=0 edge, east=right).`
+        : "No garage.";
 
-ROOM SIZE GUIDELINES (width x depth in feet):
-- Master Bedroom: 14x16 (with walk-in closet 6x8 and en-suite bath 8x10)
-- Bedroom: 11x12 (with closet 3x5)
-- Full Bathroom: 8x10
-- Half Bathroom: 5x6
-- Kitchen: 12x14
-- Living Room: 16x18 (largest room, near entry)
-- Dining Room: 12x12 (adjacent to kitchen)
-- Laundry: 6x8
-- Garage: 20x22 (attached to side, NOT counted in house sqft)
-- Foyer/Entry: 8x6 (at bottom center of plan, connects to living)
-- Hallway: 4ft wide, connects bedrooms
-- Pantry: 4x6 (off kitchen)
-${hasGarage ? "- Garage: 20x22 (attached to side, NOT counted in house sqft)" : "- No garage"}
-${style === "open" ? "- OPEN CONCEPT: kitchen, dining, and living room share one large open space. Use a single large room or place them side-by-side with shared walls, no hallway separating them." : style === "ranch" ? "- RANCH STYLE: single story, all rooms on one level, long and wide footprint, bedrooms on one wing" : style === "colonial" ? "- COLONIAL: formal layout, center hallway, dining room and living room flanking entry, bedrooms upstairs" : "- TRADITIONAL: separate defined rooms with walls between kitchen/dining/living"}
+      const systemPrompt = `You are an expert residential space planner. Output ONLY valid JSON (no markdown).
 
-PLACEMENT STRATEGY (work top to bottom):
-Row 1 (top/back): Master suite + secondary bedrooms + bathrooms + closets
-Row 2 (middle): Hallway connecting bedrooms to living areas
-Row 3 (bottom/front): Living room + kitchen + dining + entry/foyer
-${hasGarage ? "Garage: attached to left or right side of house" : ""}
+COORDINATE SYSTEM: Origin (0,0) top-left. X right, Y down. All dimensions INTEGER FEET.
+FOOTPRINT: STRICT axis-aligned RECTANGLE exactly ${W} ft wide × ${H} ft tall. Every room must lie inside [0,${W}]×[0,${H}] on its floor. No L-shaped footprint; tile the rectangle with non-overlapping room rectangles.
 
-Return ONLY valid JSON, no other text:
+RULES:
+1. No overlapping room rectangles on the same floor.
+2. Rooms must partition the footprint: union of room interiors = full rectangle (no holes). Touching edges only (no gaps).
+3. For area accounting: sum of (width*height) for rooms with countedInSqft !== false must be ~${sqftPerFloor} sf per floor (±12%). Garage/porch use countedInSqft: false.
+4. Minimum room size 3 ft per side.
+5. Include hallways/closets as needed so the layout is plausible (entry, circulation).
+6. ${styleHint}
+7. ${garageHint}
+
+JSON SCHEMA:
 {
   "totalSqft": <number>,
   "stories": ${stories},
-  "dimensions": { "width": ${targetWidth}, "height": ${targetDepth} },
+  "dimensions": { "width": ${W}, "height": ${H} },
   "rooms": [
-    {
-      "id": "room-1",
-      "name": "Living Room",
-      "type": "living",
-      "floor": 1,
-      "x": 0,
-      "y": 0,
-      "width": 16,
-      "height": 18,
-      "features": ["window", "fireplace"]
-    }
+    { "id": "string", "name": "string", "type": "living|bedroom|bathroom|kitchen|dining|garage|laundry|hallway|closet|foyer|office|pantry|porch",
+      "floor": 1, "x": 0, "y": 0, "width": 10, "height": 12, "countedInSqft": true,
+      "features": ["window"] }
   ],
   "doors": [],
-  "notes": "brief layout description"
-}`,
-        messages: [
-          {
-            role: "user",
-            content: `Design a floor plan:
-- Property: ${type}, ${property.address || "residential"}
-- ${sqft} sqft total${stories > 1 ? " (" + sqftPerFloor + " sqft per floor, " + stories + " stories)" : ""}
+  "notes": "short"
+}`;
+
+      const userInitial = `Design a floor plan JSON for:
+- ${type}, ${property.address || "residential"}
+- ${sqft} sqft total (${sqftPerFloor} sf per floor, ${stories} stor${stories > 1 ? "ies" : "y"})
 - ${beds} bedrooms, ${baths} bathrooms
-- Style: ${style === "open" ? "Open concept" : style === "ranch" ? "Ranch" : style === "colonial" ? "Colonial" : "Traditional"}
-- ${hasGarage ? "Attached garage" : "No garage"}
-- ${condition} condition${yearBuilt ? ", built ~" + yearBuilt : ""}
-- Target footprint: ~${targetWidth}ft wide x ${targetDepth}ft deep
+- Condition: ${condition}${yearBuilt ? ", year ~" + yearBuilt : ""}
+- Footprint MUST be exactly ${W} × ${H} feet per floor.
+${layoutNotes ? "\nUSER CONSTRAINTS (must satisfy if physically possible):\n" + layoutNotes : ""}`;
 
-IMPORTANT: Place rooms so they share walls with no gaps. Start with the largest rooms, then fill in smaller rooms. Every inch of the ${targetWidth}x${targetDepth} rectangle should be accounted for. Include ${beds > 2 ? "a master closet, a pantry, and a laundry room" : "a closet and laundry area"}.${hasGarage ? " Place the garage attached to the left or right side." : ""}${property.layoutNotes ? "\n\nUSER LAYOUT NOTES (follow these closely):\n" + property.layoutNotes : ""}`
-          }
-        ]
+      let floorPlan = { rooms: [], dimensions: { width: W, height: H }, stories, doors: [] };
+      let lastErrors = [];
+
+      for (let attempt = 0; attempt < 3; attempt++) {
+        let response;
+        if (attempt === 0) {
+          response = await client.messages.create({
+            model: AI_MODEL,
+            max_tokens: 4000,
+            system: systemPrompt,
+            messages: [{ role: "user", content: userInitial }],
+          });
+        } else {
+          const repairPrompt = `The previous floor plan failed validation. Fix ONLY the JSON. Keep dimensions.width=${W}, dimensions.height=${H}, stories=${stories}.
+
+ERRORS:
+${lastErrors.map((e, i) => `${i + 1}. ${e}`).join("\n")}
+
+Return corrected JSON only. Previous JSON (fix in place):
+${JSON.stringify(floorPlan).slice(0, 14000)}`;
+          response = await client.messages.create({
+            model: AI_MODEL,
+            max_tokens: 4000,
+            system: systemPrompt + "\n\nYou are correcting a failed plan. Preserve intent but eliminate overlaps, fit all rooms in bounds, and fix counted areas.",
+            messages: [{ role: "user", content: repairPrompt }],
+          });
+        }
+
+        const text = response?.content?.[0]?.text;
+        if (!text) throw new Error("Empty AI response");
+        let parsed;
+        try {
+          parsed = parseFloorPlanFromAiText(text);
+        } catch (pe) {
+          lastErrors = ["Invalid JSON: " + pe.message];
+          continue;
+        }
+
+        floorPlan = normalizeFloorPlanRooms(parsed, W, H, stories);
+        const v = validateFloorPlanGeometry(floorPlan, sqftPerFloor, stories, W, H);
+        if (v.ok) {
+          floorPlan.validation = { ok: true, attempts: attempt + 1 };
+          res.json({ floorPlan });
+          return;
+        }
+        lastErrors = v.errors;
+      }
+
+      res.status(422).json({
+        error: "Floor plan could not be validated after multiple attempts.",
+        details: lastErrors,
+        floorPlan: normalizeFloorPlanRooms(floorPlan, W, H, stories),
       });
-
-      const text = response?.content?.[0]?.text;
-      if (!text) throw new Error("Empty AI response");
-      const jsonMatch = text.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) throw new Error("No JSON in AI response");
-
-      let floorPlan;
-      try { floorPlan = JSON.parse(jsonMatch[0]); } catch (parseErr) { throw new Error("Invalid JSON from AI: " + parseErr.message); }
-
-      // Validate structure
-      if (!floorPlan.rooms || !Array.isArray(floorPlan.rooms)) throw new Error("AI response missing rooms array");
-      if (floorPlan.rooms.length === 0) throw new Error("AI returned zero rooms");
-      if (floorPlan.rooms.length > 50) floorPlan.rooms = floorPlan.rooms.slice(0, 50); // cap at 50
-
-      // Ensure dimensions exist
-      if (!floorPlan.dimensions) floorPlan.dimensions = {};
-      if (!floorPlan.dimensions.width) floorPlan.dimensions.width = targetWidth;
-      if (!floorPlan.dimensions.height) floorPlan.dimensions.height = targetDepth;
-      if (!floorPlan.stories) floorPlan.stories = stories;
-      if (!floorPlan.doors) floorPlan.doors = [];
-
-      // Post-process: snap coordinates to integers, clamp to bounds, ensure required fields
-      floorPlan.rooms.forEach(room => {
-        room.x = Math.max(0, Math.round(room.x || 0));
-        room.y = Math.max(0, Math.round(room.y || 0));
-        room.width = Math.max(3, Math.round(room.width || 10));
-        room.height = Math.max(3, Math.round(room.height || 10));
-        room.floor = room.floor || 1;
-        room.type = room.type || "living";
-        room.name = room.name || "Room";
-        room.features = Array.isArray(room.features) ? room.features : [];
-        if (!room.id) room.id = "room-" + Math.random().toString(36).slice(2, 8);
-      });
-
-      res.json({ floorPlan });
     } catch (err) {
       console.error("Floor plan generation error:", err);
       res.status(500).json({ error: err.message || "Failed to generate floor plan" });

@@ -4,6 +4,7 @@ service cloud.firestore {
     // Admin UIDs — only these users can read/update data
     function isAdmin() {
       return request.auth != null && (
+        request.auth.token.admin == true ||
         request.auth.uid == "xUWUFpdXeDSJxZIAgVwy5F5eyEs1" ||
         request.auth.uid == "ut9PhvrCWNS8NvxqOAy5mWirCfB2"
       );

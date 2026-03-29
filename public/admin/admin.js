@@ -1921,6 +1921,11 @@
   var allDeals = [];
   var currentDealId = null;
   var currentPhase = "phase1";
+  var showArchivedDeals = false;
+  var DEFAULT_UNDERWRITING_ASSUMPTIONS = {
+    vacancyPct: 7, maintenancePct: 8, managementPct: 9, insuranceMonthly: 150,
+    taxPctOfArv: 1.2, buyClosingPct: 3, sellClosingPct: 8, dscrRatePct: 7.5,
+  };
 
   const CHECKLIST_LABELS = {
     phase1: {
@@ -2009,8 +2014,9 @@
   function renderPortfolioDashboard() {
     // Owned = deals where money has actually been committed (closing or later)
     var ownedStatuses = ["closing", "rehab", "exit", "complete"];
-    var owned = allDeals.filter(function(d) { return ownedStatuses.indexOf(d.status) !== -1; });
-    var pipeline = allDeals.filter(function(d) { return d.status === "prospecting" || d.status === "under-contract"; });
+    var active = allDeals.filter(function(d) { return !d.archived; });
+    var owned = active.filter(function(d) { return ownedStatuses.indexOf(d.status) !== -1; });
+    var pipeline = active.filter(function(d) { return d.status === "prospecting" || d.status === "under-contract"; });
 
     // Aggregate financials — ONLY from owned deals (capital actually deployed)
     var totalCashInvested = 0, totalProjectCost = 0, totalEquity = 0, totalMonthlyFlow = 0, totalArv = 0;
@@ -2072,7 +2078,7 @@
     // Status chart
     if (portfolioChartStatus) portfolioChartStatus.destroy();
     var statusCounts = {};
-    allDeals.forEach(function(d) { var s = d.status || "prospecting"; statusCounts[s] = (statusCounts[s] || 0) + 1; });
+    active.forEach(function(d) { var s = d.status || "prospecting"; statusCounts[s] = (statusCounts[s] || 0) + 1; });
     var statusLabels = Object.keys(statusCounts).map(function(k) { return STATUS_LABELS[k] || k; });
     var statusColors = { prospecting:"#2563eb", "under-contract":"#d97706", closing:"#0369a1", rehab:"#a855f7", exit:"#059669", complete:"#16a34a", dead:"#dc2626" };
     var statusBg = Object.keys(statusCounts).map(function(k) { return statusColors[k] || "#94a3b8"; });
@@ -2089,7 +2095,7 @@
     // Strategy chart
     if (portfolioChartStrategy) portfolioChartStrategy.destroy();
     var strategyCounts = {};
-    allDeals.forEach(function(d) { var s = (d.property || {}).strategy || "other"; strategyCounts[s] = (strategyCounts[s] || 0) + 1; });
+    active.forEach(function(d) { var s = (d.property || {}).strategy || "other"; strategyCounts[s] = (strategyCounts[s] || 0) + 1; });
     var stratLabels = Object.keys(strategyCounts).map(function(k) { return STRATEGY_LABELS[k] || k; });
     var stratColors = ["#1a3c6e", "#c9a84c", "#2d6a4f", "#7c3aed", "#0891b2"];
 
@@ -2105,9 +2111,10 @@
 
   // ===== CSV EXPORT =====
   on("btn-export-csv", "click", function() {
-    if (!allDeals.length) { showToast("No deals to export", "error"); return; }
+    var exportDeals = showArchivedDeals ? allDeals : allDeals.filter(function(d) { return !d.archived; });
+    if (!exportDeals.length) { showToast("No deals to export", "error"); return; }
     var headers = ["Address","City","State","Zip","Type","Strategy","Condition","Status","Deal Score","Purchase Price","Rehab Budget","ARV","Monthly Rent","Suggested Offer","70% Rule","LTV","LTC","Est. Profit","Est. Cash Flow","Actual Purchase","Actual Closing","Actual ARV","Rehab Spent","Total Project Cost","Equity","Down Payment","Loan Amount","Interest Rate","Earnest Money","Holding Costs","Cash Invested","Sale Price","Net Proceeds","Refi Appraisal","Cash Out","Contacts","Activity Notes","Documents","Created"];
-    var rows = allDeals.map(function(d) {
+    var rows = exportDeals.map(function(d) {
       var p = d.property || {};
       var a = d.analysis || {};
       var f = a.financials || {};
@@ -2178,7 +2185,7 @@
       var data = await res.json();
       if (!res.ok) throw new Error(data.error || "Clone failed");
 
-      var newDeal = { id: data.dealId, property: deal.property, analysis: data.analysis, checklists: { phase1:{}, phase2:{}, phase3:{}, phase4:{}, phase5:{} }, status: "prospecting", activityLog: [], contacts: [], financials: { rehabLineItems: [], monthlyExpenses: {} }, documents: [], keyDates: {}, createdAt: new Date().toISOString() };
+      var newDeal = { id: data.dealId, property: deal.property, analysis: data.analysis, checklists: { phase1:{}, phase2:{}, phase3:{}, phase4:{}, phase5:{} }, status: "prospecting", activityLog: [], contacts: [], financials: { rehabLineItems: [], monthlyExpenses: {}, assumptions: Object.assign({}, DEFAULT_UNDERWRITING_ASSUMPTIONS, (deal.financials && deal.financials.assumptions) || {}) }, documents: [], keyDates: {}, createdAt: new Date().toISOString() };
       allDeals.unshift(newDeal);
       showToast("Deal cloned — opening new copy", "success");
       openDealDetail(data.dealId);
@@ -2198,6 +2205,7 @@
     const searchFilter = (document.getElementById("deal-filter-search").value || "").toLowerCase();
 
     let filtered = allDeals;
+    if (!showArchivedDeals) filtered = filtered.filter(function(d) { return !d.archived; });
     if (statusFilter) filtered = filtered.filter(d => d.status === statusFilter);
     if (strategyFilter) filtered = filtered.filter(d => d.property?.strategy === strategyFilter);
     if (searchFilter) filtered = filtered.filter(d => (d.property?.address || "").toLowerCase().includes(searchFilter) || (d.property?.city || "").toLowerCase().includes(searchFilter));
@@ -2221,29 +2229,34 @@
         <td>${fmtDealDollar(p.purchasePrice)}</td>
         <td><span class="status-badge badge-${d.status || "prospecting"}">${STATUS_LABELS[d.status] || d.status || "—"}</span></td>
         <td>${date}</td>
-        <td><button class="btn btn-secondary btn-sm deal-row-delete" data-deal-id="${d.id}" style="padding:0.15rem 0.4rem;font-size:0.65rem;color:#dc2626">&times;</button></td>
+        <td><button type="button" class="btn btn-secondary btn-sm deal-row-archive" data-deal-id="${d.id}" style="padding:0.15rem 0.4rem;font-size:0.65rem;color:#b45309" title="Archive">A</button></td>
       </tr>`;
     }).join("");
 
     tbody.querySelectorAll("tr[data-deal-id]").forEach(row => {
       row.addEventListener("click", (e) => {
-        if (e.target.closest(".deal-row-delete")) return;
+        if (e.target.closest(".deal-row-archive")) return;
         openDealDetail(row.dataset.dealId);
       });
     });
 
-    tbody.querySelectorAll(".deal-row-delete").forEach(btn => {
+    tbody.querySelectorAll(".deal-row-archive").forEach(btn => {
       btn.addEventListener("click", async (e) => {
         e.stopPropagation();
         var id = btn.dataset.dealId;
-        if (!confirm("Delete this deal?")) return;
+        if (!confirm("Archive this deal? You can restore it from the list (Show archived).")) return;
         try {
-          await db.collection("deal-analyzer").doc(id).delete();
-          allDeals = allDeals.filter(function(d) { return d.id !== id; });
+          await db.collection("deal-analyzer").doc(id).update({
+            archived: true,
+            archivedAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          });
+          var d = allDeals.find(function(x) { return x.id === id; });
+          if (d) { d.archived = true; d.archivedAt = new Date().toISOString(); }
           renderDealsTable();
           renderPortfolioDashboard();
-          showToast("Deal deleted", "success");
-        } catch (err) { showToast("Failed to delete", "error"); }
+          showToast("Deal archived", "success");
+        } catch (err) { showToast("Failed to archive", "error"); }
       });
     });
   }
@@ -2323,13 +2336,13 @@
       const res = await fetch(`${FUNCTIONS_BASE}/analyzeDeal`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ property }),
+        body: JSON.stringify({ property, assumptions: Object.assign({}, DEFAULT_UNDERWRITING_ASSUMPTIONS) }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Analysis failed");
 
       // Add to local list and open detail
-      const newDeal = { id: data.dealId, property, analysis: data.analysis, checklists: { phase1:{}, phase2:{}, phase3:{}, phase4:{}, phase5:{} }, status: "prospecting", activityLog: [], contacts: [], financials: { rehabLineItems: [], monthlyExpenses: {} }, documents: [], keyDates: {}, createdAt: new Date().toISOString() };
+      const newDeal = { id: data.dealId, property, analysis: data.analysis, checklists: { phase1:{}, phase2:{}, phase3:{}, phase4:{}, phase5:{} }, status: "prospecting", activityLog: [], contacts: [], financials: { rehabLineItems: [], monthlyExpenses: {}, assumptions: Object.assign({}, DEFAULT_UNDERWRITING_ASSUMPTIONS) }, documents: [], keyDates: {}, createdAt: new Date().toISOString() };
       allDeals.unshift(newDeal);
       showToast("Deal analyzed successfully", "success");
       openDealDetail(data.dealId);
@@ -2341,6 +2354,81 @@
       btn.textContent = "Analyze Deal with AI";
     }
   });
+
+  function renderDealAssumptions(deal) {
+    if (!deal.financials) deal.financials = {};
+    if (!deal.financials.assumptions) deal.financials.assumptions = Object.assign({}, DEFAULT_UNDERWRITING_ASSUMPTIONS);
+    var a = Object.assign({}, DEFAULT_UNDERWRITING_ASSUMPTIONS, deal.financials.assumptions);
+    var fields = ["vacancyPct", "maintenancePct", "managementPct", "insuranceMonthly", "taxPctOfArv", "buyClosingPct", "sellClosingPct", "dscrRatePct"];
+    var ids = { vacancyPct: "deal-asum-vacancy", maintenancePct: "deal-asum-maint", managementPct: "deal-asum-mgmt", insuranceMonthly: "deal-asum-ins", taxPctOfArv: "deal-asum-tax", buyClosingPct: "deal-asum-buyclose", sellClosingPct: "deal-asum-sellclose", dscrRatePct: "deal-asum-dscr" };
+    fields.forEach(function(f) {
+      var el = document.getElementById(ids[f]);
+      if (el) el.value = a[f] !== undefined && a[f] !== null ? a[f] : "";
+    });
+  }
+
+  function readAssumptionsFromForm() {
+    var o = {};
+    document.querySelectorAll(".deal-assumption-input").forEach(function(inp) {
+      if (!inp.dataset.field) return;
+      var v = parseFloat(inp.value);
+      if (!isNaN(v)) o[inp.dataset.field] = v;
+    });
+    return Object.assign({}, DEFAULT_UNDERWRITING_ASSUMPTIONS, o);
+  }
+
+  function applyFpOptionsToUI(deal) {
+    var p = deal.property || {};
+    document.getElementById("fp-opt-stories").value = String(Math.min(3, Math.max(1, parseInt(p.stories, 10) || 1)));
+    document.getElementById("fp-opt-style").value = p.style || "open";
+    document.getElementById("fp-opt-garage").value = p.hasGarage === false ? "no" : "yes";
+    document.getElementById("fp-opt-garage-side").value = p.garageSide || "right";
+    document.getElementById("fp-opt-layout-notes").value = p.layoutNotes || "";
+    document.getElementById("fp-opt-open").value = "auto";
+  }
+
+  function setDealArchivedUi(deal) {
+    var arch = deal.archived === true;
+    var restore = document.getElementById("btn-restore-deal");
+    var del = document.getElementById("btn-delete-deal");
+    if (restore) restore.style.display = arch ? "inline-block" : "none";
+    if (del) del.style.display = arch ? "none" : "inline-block";
+    ["btn-reanalyze", "btn-clone-deal", "btn-generate-floorplan"].forEach(function(id) {
+      var el = document.getElementById(id);
+      if (el) el.disabled = arch;
+    });
+    var st = document.getElementById("deal-detail-status");
+    if (st) st.disabled = arch;
+    document.querySelectorAll("#fp-opt-stories, #fp-opt-style, #fp-opt-garage, #fp-opt-garage-side, #fp-opt-open, #fp-opt-layout-notes").forEach(function(el) {
+      if (el) el.disabled = arch;
+    });
+    document.querySelectorAll(".deal-assumption-input").forEach(function(el) { if (el) el.disabled = arch; });
+  }
+
+  var fpOptSaveTimer = null;
+  function scheduleFpOptionsSave() {
+    clearTimeout(fpOptSaveTimer);
+    fpOptSaveTimer = setTimeout(function() {
+      if (!currentDealId) return;
+      var deal = allDeals.find(function(d) { return d.id === currentDealId; });
+      if (!deal) return;
+      if (!deal.property) deal.property = {};
+      var p = deal.property;
+      p.stories = parseInt(document.getElementById("fp-opt-stories").value, 10) || 1;
+      p.style = document.getElementById("fp-opt-style").value;
+      p.hasGarage = document.getElementById("fp-opt-garage").value === "yes";
+      p.garageSide = document.getElementById("fp-opt-garage-side").value;
+      p.layoutNotes = document.getElementById("fp-opt-layout-notes").value.trim();
+      db.collection("deal-analyzer").doc(currentDealId).update({
+        "property.stories": p.stories,
+        "property.style": p.style,
+        "property.hasGarage": p.hasGarage,
+        "property.garageSide": p.garageSide,
+        "property.layoutNotes": p.layoutNotes,
+        updatedAt: new Date().toISOString(),
+      }).catch(function(e) { console.error(e); });
+    }, 600);
+  }
 
   // Open detail view
   function openDealDetail(id) {
@@ -2354,6 +2442,9 @@
     document.getElementById("deal-detail-section").style.display = "";
 
     renderDealResults(deal);
+    renderDealAssumptions(deal);
+    applyFpOptionsToUI(deal);
+    setDealArchivedUi(deal);
     renderDealDates(deal);
     renderDealActuals(deal);
     renderDealActivity(deal);
@@ -2960,6 +3051,29 @@
     });
   });
 
+  // Underwriting assumptions (saved to financials.assumptions.*)
+  document.querySelectorAll(".deal-assumption-input").forEach(function(inp) {
+    inp.addEventListener("blur", function() {
+      if (!currentDealId) return;
+      var field = inp.dataset.field;
+      var val = parseFloat(inp.value);
+      if (isNaN(val)) return;
+      var deal = allDeals.find(function(d) { return d.id === currentDealId; });
+      if (!deal) return;
+      if (!deal.financials) deal.financials = {};
+      if (!deal.financials.assumptions) deal.financials.assumptions = {};
+      deal.financials.assumptions[field] = val;
+      queueDealFieldSave("financials.assumptions." + field, val);
+    });
+  });
+
+  ["fp-opt-stories", "fp-opt-style", "fp-opt-garage", "fp-opt-garage-side", "fp-opt-open"].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) el.addEventListener("change", scheduleFpOptionsSave);
+  });
+  var fpOptNotes = document.getElementById("fp-opt-layout-notes");
+  if (fpOptNotes) fpOptNotes.addEventListener("blur", scheduleFpOptionsSave);
+
   // ===== MAP & FLOOR PLAN =====
   var dealMap = null;
   var dealMapMarker = null;
@@ -3025,6 +3139,13 @@
     empty.style.display = "none"; svg.style.display = "";
     var floorSelect = document.getElementById("fp-floor-select");
     floorSelect.style.display = fp.stories > 1 ? "" : "none";
+    var maxF = Math.min(3, Math.max(1, parseInt(fp.stories, 10) || 1));
+    floorSelect.querySelectorAll("option").forEach(function(opt) {
+      var v = parseInt(opt.value, 10);
+      opt.style.display = v <= maxF ? "" : "none";
+    });
+    if (fpCurrentFloor > maxF) fpCurrentFloor = 1;
+    floorSelect.value = String(fpCurrentFloor);
     drawFloorPlan();
   }
 
@@ -3050,12 +3171,6 @@
     var dims = fp.dimensions || {};
     var planW = dims.width || 60;
     var planH = dims.height || 40;
-
-    // Expand plan bounds if rooms exceed it
-    rooms.forEach(function(r) {
-      if (r.x + r.width > planW) planW = r.x + r.width + 2;
-      if (r.y + r.height > planH) planH = r.y + r.height + 2;
-    });
 
     var cW = container.clientWidth - 20;
     var cH = container.clientHeight - 10 || 380;
@@ -3261,19 +3376,27 @@
     var dy = (e.clientY - fpDrag.startY) / (fpScale * fpZoom);
 
     if (fpDrag.type === "move") {
-      room.x = snapFt(Math.max(0, fpDrag.origX + dx));
-      room.y = snapFt(Math.max(0, fpDrag.origY + dy));
+      var planWm = (currentFloorPlan.dimensions || {}).width || 60;
+      var planHm = (currentFloorPlan.dimensions || {}).height || 40;
+      room.x = snapFt(Math.max(0, Math.min(fpDrag.origX + dx, planWm - room.width)));
+      room.y = snapFt(Math.max(0, Math.min(fpDrag.origY + dy, planHm - room.height)));
       if (fpDrag.el) {
         var tdx = (room.x - fpDrag.origX) * fpScale;
         var tdy = (room.y - fpDrag.origY) * fpScale;
         fpDrag.el.setAttribute("transform", "translate(" + tdx + "," + tdy + ")");
       }
     } else {
+      var planWr = (currentFloorPlan.dimensions || {}).width || 60;
+      var planHr = (currentFloorPlan.dimensions || {}).height || 40;
       if (fpDrag.type === "resize-e") { room.width = snapFt(Math.max(3, fpDrag.origW + dx)); }
       else if (fpDrag.type === "resize-s") { room.height = snapFt(Math.max(3, fpDrag.origH + dy)); }
       else if (fpDrag.type === "resize-se") { room.width = snapFt(Math.max(3, fpDrag.origW + dx)); room.height = snapFt(Math.max(3, fpDrag.origH + dy)); }
       else if (fpDrag.type === "resize-w") { var newX = snapFt(fpDrag.origX + dx); var newW = fpDrag.origW + (fpDrag.origX - newX); if (newW >= 3) { room.x = newX; room.width = newW; } }
       else if (fpDrag.type === "resize-n") { var newY = snapFt(fpDrag.origY + dy); var newH = fpDrag.origH + (fpDrag.origY - newY); if (newH >= 3) { room.y = newY; room.height = newH; } }
+      room.x = Math.max(0, Math.min(room.x, planWr - 3));
+      room.y = Math.max(0, Math.min(room.y, planHr - 3));
+      room.width = Math.max(3, Math.min(room.width, planWr - room.x));
+      room.height = Math.max(3, Math.min(room.height, planHr - room.y));
       if (!fpDrag._raf) {
         fpDrag._raf = requestAnimationFrame(function() { fpDrag._raf = null; drawFloorPlan(); });
       }
@@ -3417,10 +3540,25 @@
   });
 
   // Generate floor plan
+  function collectFloorPlanConstraintsFromUI() {
+    var openSel = document.getElementById("fp-opt-open").value;
+    var style = document.getElementById("fp-opt-style").value;
+    var openConcept = openSel === "yes" ? true : openSel === "no" ? false : style === "open";
+    return {
+      stories: parseInt(document.getElementById("fp-opt-stories").value, 10) || 1,
+      style: style,
+      hasGarage: document.getElementById("fp-opt-garage").value === "yes",
+      garageSide: document.getElementById("fp-opt-garage-side").value,
+      openConcept: openConcept,
+      layoutNotes: document.getElementById("fp-opt-layout-notes").value.trim(),
+    };
+  }
+
   on("btn-generate-floorplan", "click", async function() {
     if (!currentDealId) return;
     var deal = allDeals.find(function(d) { return d.id === currentDealId; });
     if (!deal) return;
+    if (deal.archived) { showToast("Restore archived deal before generating", "error"); return; }
     if (deal.floorPlan && deal.floorPlan.rooms && deal.floorPlan.rooms.length) {
       if (!confirm("This will replace the existing floor plan. Continue?")) return;
     }
@@ -3429,17 +3567,41 @@
     btn.disabled = true; btn.textContent = "Generating...";
     loading.style.display = "flex";
     try {
+      if (!deal.property) deal.property = {};
+      var c = collectFloorPlanConstraintsFromUI();
+      deal.property.stories = c.stories;
+      deal.property.style = c.style;
+      deal.property.hasGarage = c.hasGarage;
+      deal.property.garageSide = c.garageSide;
+      deal.property.layoutNotes = c.layoutNotes;
+      await db.collection("deal-analyzer").doc(currentDealId).update({
+        "property.stories": deal.property.stories,
+        "property.style": deal.property.style,
+        "property.hasGarage": deal.property.hasGarage,
+        "property.garageSide": deal.property.garageSide,
+        "property.layoutNotes": deal.property.layoutNotes,
+        updatedAt: new Date().toISOString(),
+      });
       var token = await currentUser.getIdToken();
       var res = await fetch(FUNCTIONS_BASE + "/generateFloorPlan", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
-        body: JSON.stringify({ property: deal.property })
+        body: JSON.stringify({ property: deal.property, constraints: c }),
       });
       var data = await res.json();
+      if (res.status === 422) {
+        var msg = (data.error || "Validation failed") + (data.details && data.details.length ? ": " + data.details.slice(0, 3).join("; ") : "");
+        showToast(msg, "error");
+        if (data.floorPlan) {
+          deal.floorPlan = data.floorPlan;
+          renderDealFloorPlan(deal);
+        }
+        return;
+      }
       if (!res.ok) throw new Error(data.error || "Generation failed");
       deal.floorPlan = data.floorPlan;
       await db.collection("deal-analyzer").doc(currentDealId).update({
-        floorPlan: data.floorPlan, updatedAt: new Date().toISOString()
+        floorPlan: data.floorPlan, updatedAt: new Date().toISOString(),
       });
       renderDealFloorPlan(deal);
       showToast("Floor plan generated — click Edit to customize", "success");
@@ -3447,7 +3609,7 @@
       console.error("Floor plan error:", err);
       showToast("Failed to generate floor plan: " + err.message, "error");
     } finally {
-      btn.disabled = false; btn.textContent = "Generate Floor Plan";
+      btn.disabled = false; btn.textContent = deal && deal.floorPlan && deal.floorPlan.rooms && deal.floorPlan.rooms.length ? "Regenerate Floor Plan" : "Generate Floor Plan";
       loading.style.display = "none";
     }
   });
@@ -3777,15 +3939,23 @@
     btn.textContent = "Analyzing...";
     try {
       const token = await currentUser.getIdToken();
+      const assumptions = readAssumptionsFromForm();
+      if (!deal.financials) deal.financials = {};
+      deal.financials.assumptions = assumptions;
       const res = await fetch(`${FUNCTIONS_BASE}/analyzeDeal`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ property: deal.property, dealId: currentDealId }),
+        body: JSON.stringify({ property: deal.property, dealId: currentDealId, assumptions }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Re-analysis failed");
 
       deal.analysis = data.analysis;
+      await db.collection("deal-analyzer").doc(currentDealId).update({
+        analysis: data.analysis,
+        "financials.assumptions": assumptions,
+        updatedAt: new Date().toISOString(),
+      });
       renderDealResults(deal);
       showToast("Deal re-analyzed", "success");
     } catch (err) {
@@ -3796,17 +3966,42 @@
     }
   });
 
-  // Delete deal
+  // Archive deal (soft delete)
   on("btn-delete-deal", "click", async () => {
-    if (!currentDealId || !confirm("Delete this deal? This cannot be undone.")) return;
+    if (!currentDealId || !confirm("Archive this deal? You can restore it from the list with Show archived.")) return;
     try {
-      await db.collection("deal-analyzer").doc(currentDealId).delete();
-      allDeals = allDeals.filter(d => d.id !== currentDealId);
-      showToast("Deal deleted", "success");
+      await db.collection("deal-analyzer").doc(currentDealId).update({
+        archived: true,
+        archivedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+      var d = allDeals.find(function(x) { return x.id === currentDealId; });
+      if (d) { d.archived = true; d.archivedAt = new Date().toISOString(); }
+      showToast("Deal archived", "success");
       showDealsList();
       renderDealsTable();
+      renderPortfolioDashboard();
     } catch (err) {
-      showToast("Failed to delete deal", "error");
+      showToast("Failed to archive deal", "error");
+    }
+  });
+
+  on("btn-restore-deal", "click", async function() {
+    if (!currentDealId) return;
+    try {
+      await db.collection("deal-analyzer").doc(currentDealId).update({
+        archived: false,
+        archivedAt: null,
+        updatedAt: new Date().toISOString(),
+      });
+      var d = allDeals.find(function(x) { return x.id === currentDealId; });
+      if (d) { d.archived = false; delete d.archivedAt; }
+      showToast("Deal restored", "success");
+      setDealArchivedUi(d);
+      renderDealsTable();
+      renderPortfolioDashboard();
+    } catch (err) {
+      showToast("Failed to restore", "error");
     }
   });
 
@@ -3814,6 +4009,10 @@
   ["deal-filter-status", "deal-filter-strategy", "deal-filter-search"].forEach(function(id) {
     on(id, "input", renderDealsTable);
     on(id, "change", renderDealsTable);
+  });
+  on("deal-filter-archived", "change", function() {
+    showArchivedDeals = document.getElementById("deal-filter-archived").checked;
+    renderDealsTable();
   });
 
   // ===== PROPERTY MANAGEMENT =====
@@ -3826,6 +4025,7 @@
 
   function getOwnedProperties() {
     return allDeals.filter(function(d) {
+      if (d.archived) return false;
       return PM_OWNED.indexOf(d.status) !== -1
         || (d.floorPlan && d.floorPlan.rooms && d.floorPlan.rooms.length > 0)
         || (d.propertyMgmt && d.propertyMgmt.managed);
@@ -4323,6 +4523,17 @@
     deal.property.yearBuilt = yearBuilt;
 
     var genProperty = Object.assign({}, p, { beds: beds, baths: baths, sqft: sqft, stories: stories, yearBuilt: yearBuilt, style: style, hasGarage: garage === "yes" });
+    var pmNotesEl = document.getElementById("pm-gen-notes");
+    var layoutNotes = pmNotesEl ? pmNotesEl.value.trim() : "";
+    if (layoutNotes) genProperty.layoutNotes = layoutNotes;
+    var pmConstraints = {
+      stories: stories,
+      style: style,
+      hasGarage: garage === "yes",
+      garageSide: "right",
+      openConcept: style === "open",
+      layoutNotes: layoutNotes,
+    };
 
     var btn = document.getElementById("pm-btn-generate-fp");
     if (btn) { btn.disabled = true; btn.textContent = "Generating... (~15s)"; }
@@ -4331,9 +4542,26 @@
       var res = await fetch(FUNCTIONS_BASE + "/generateFloorPlan", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
-        body: JSON.stringify({ property: genProperty })
+        body: JSON.stringify({ property: genProperty, constraints: pmConstraints }),
       });
       var data = await res.json();
+      if (res.status === 422) {
+        var msg = (data.error || "Validation failed") + (data.details && data.details.length ? ": " + data.details.slice(0, 3).join("; ") : "");
+        showToast(msg, "error");
+        if (data.floorPlan) {
+          deal.floorPlan = data.floorPlan;
+          await db.collection("deal-analyzer").doc(pmCurrentId).update({
+            floorPlan: data.floorPlan,
+            "property.beds": beds, "property.baths": baths, "property.sqft": sqft,
+            "property.stories": stories, "property.yearBuilt": yearBuilt,
+            updatedAt: new Date().toISOString(),
+          });
+          renderPmFloorPlan(deal);
+          populatePmRoomDropdowns(deal);
+          renderPmHouseInfo(deal);
+        }
+        return;
+      }
       if (!res.ok) throw new Error(data.error || "Generation failed");
       deal.floorPlan = data.floorPlan;
       await db.collection("deal-analyzer").doc(pmCurrentId).update({
@@ -4349,6 +4577,7 @@
     } catch (err) {
       console.error("PM floor plan error:", err);
       showToast("Failed to generate: " + err.message, "error");
+    } finally {
       if (btn) { btn.disabled = false; btn.textContent = "Generate Floor Plan with AI"; }
     }
   }
