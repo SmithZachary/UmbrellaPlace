@@ -1132,32 +1132,48 @@ Return ONLY valid JSON, no other text:
 - ${condition} condition${yearBuilt ? ", built ~" + yearBuilt : ""}
 - Target footprint: ~${targetWidth}ft wide x ${targetDepth}ft deep
 
-IMPORTANT: Place rooms so they share walls with no gaps. Start with the largest rooms, then fill in smaller rooms. Every inch of the ${targetWidth}x${targetDepth} rectangle should be accounted for. Include ${beds > 2 ? "a master closet, a pantry, and a laundry room" : "a closet and laundry area"}.${hasGarage ? " Place the garage attached to the left or right side." : ""}`
+IMPORTANT: Place rooms so they share walls with no gaps. Start with the largest rooms, then fill in smaller rooms. Every inch of the ${targetWidth}x${targetDepth} rectangle should be accounted for. Include ${beds > 2 ? "a master closet, a pantry, and a laundry room" : "a closet and laundry area"}.${hasGarage ? " Place the garage attached to the left or right side." : ""}${property.layoutNotes ? "\n\nUSER LAYOUT NOTES (follow these closely):\n" + property.layoutNotes : ""}`
           }
         ]
       });
 
-      const text = response.content[0].text;
+      const text = response?.content?.[0]?.text;
+      if (!text) throw new Error("Empty AI response");
       const jsonMatch = text.match(/\{[\s\S]*\}/);
       if (!jsonMatch) throw new Error("No JSON in AI response");
-      const floorPlan = JSON.parse(jsonMatch[0]);
 
-      // Post-process: snap coordinates to integers, clamp to bounds
-      if (floorPlan.rooms) {
-        floorPlan.rooms.forEach(room => {
-          room.x = Math.max(0, Math.round(room.x || 0));
-          room.y = Math.max(0, Math.round(room.y || 0));
-          room.width = Math.max(3, Math.round(room.width || 10));
-          room.height = Math.max(3, Math.round(room.height || 10));
-          room.floor = room.floor || 1;
-          if (!room.id) room.id = "room-" + Math.random().toString(36).slice(2, 8);
-        });
-      }
+      let floorPlan;
+      try { floorPlan = JSON.parse(jsonMatch[0]); } catch (parseErr) { throw new Error("Invalid JSON from AI: " + parseErr.message); }
+
+      // Validate structure
+      if (!floorPlan.rooms || !Array.isArray(floorPlan.rooms)) throw new Error("AI response missing rooms array");
+      if (floorPlan.rooms.length === 0) throw new Error("AI returned zero rooms");
+      if (floorPlan.rooms.length > 50) floorPlan.rooms = floorPlan.rooms.slice(0, 50); // cap at 50
+
+      // Ensure dimensions exist
+      if (!floorPlan.dimensions) floorPlan.dimensions = {};
+      if (!floorPlan.dimensions.width) floorPlan.dimensions.width = targetWidth;
+      if (!floorPlan.dimensions.height) floorPlan.dimensions.height = targetDepth;
+      if (!floorPlan.stories) floorPlan.stories = stories;
+      if (!floorPlan.doors) floorPlan.doors = [];
+
+      // Post-process: snap coordinates to integers, clamp to bounds, ensure required fields
+      floorPlan.rooms.forEach(room => {
+        room.x = Math.max(0, Math.round(room.x || 0));
+        room.y = Math.max(0, Math.round(room.y || 0));
+        room.width = Math.max(3, Math.round(room.width || 10));
+        room.height = Math.max(3, Math.round(room.height || 10));
+        room.floor = room.floor || 1;
+        room.type = room.type || "living";
+        room.name = room.name || "Room";
+        room.features = Array.isArray(room.features) ? room.features : [];
+        if (!room.id) room.id = "room-" + Math.random().toString(36).slice(2, 8);
+      });
 
       res.json({ floorPlan });
     } catch (err) {
       console.error("Floor plan generation error:", err);
-      res.status(500).json({ error: "Failed to generate floor plan" });
+      res.status(500).json({ error: err.message || "Failed to generate floor plan" });
     }
   }
 );

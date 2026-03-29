@@ -4,6 +4,14 @@
   const db = firebase.firestore();
   const FUNCTIONS_BASE = "https://us-central1-umbrellaplace-59c7d.cloudfunctions.net";
 
+  // Safe event binding — prevents one missing element from killing all subsequent handlers
+  function on(id, event, handler) {
+    var el = document.getElementById(id);
+    if (el) el.addEventListener(event, handler);
+    else console.warn("Missing element: #" + id);
+    return el;
+  }
+
   // Label maps (same as Cloud Functions)
   const loanTypeLabels = {
     bridge: "Bridge Loan",
@@ -63,6 +71,8 @@
   };
 
   var dealsLoaded = false; // Deal Analyzer lazy-load flag
+  var dealsLoadedAt = 0; // Timestamp of last load
+  var DEALS_STALE_MS = 5 * 60 * 1000; // Re-fetch if older than 5 minutes
 
   // ===== PROFILE SYSTEM =====
   let activeProfile = "zachary"; // "zachary" or "cole"
@@ -137,7 +147,7 @@
   });
 
   // ===== LOGOUT =====
-  document.getElementById("btn-logout").addEventListener("click", () => {
+  on("btn-logout", "click", () => {
     auth.signOut().then(() => window.location.href = "login.html");
   });
 
@@ -151,6 +161,8 @@
   });
 
   function switchView(viewId) {
+    // Flush pending saves before switching
+    if (typeof flushDealSave === "function") flushDealSave();
     // Update nav active state
     document.querySelectorAll(".nav-item").forEach((n) => n.classList.remove("active"));
     const activeNav = document.querySelector(`.nav-item[data-view="${viewId}"]`);
@@ -174,16 +186,18 @@
     };
     document.getElementById("topbar-title").textContent = titles[viewId] || "Dashboard";
 
-    // Lazy-load deals
-    if ((viewId === "deal-analyzer" || viewId === "property-mgmt") && !dealsLoaded) {
+    // Lazy-load deals (refresh if stale > 5 min)
+    var needsLoad = !dealsLoaded || (Date.now() - dealsLoadedAt > DEALS_STALE_MS);
+    if ((viewId === "deal-analyzer" || viewId === "property-mgmt") && needsLoad) {
       if (viewId === "property-mgmt") {
         document.getElementById("pm-loading").style.display = "flex";
         document.getElementById("pm-list-section").style.display = "none";
       }
       loadDeals().then(function() {
-        if (viewId === "property-mgmt") {
-          document.getElementById("pm-loading").style.display = "none";
-          document.getElementById("pm-list-section").style.display = "";
+        dealsLoadedAt = Date.now();
+        document.getElementById("pm-loading").style.display = "none";
+        document.getElementById("pm-list-section").style.display = "";
+        if (document.getElementById("view-property-mgmt").classList.contains("active")) {
           renderPropertyList();
         }
       });
@@ -197,7 +211,7 @@
   }
 
   // Mobile sidebar
-  document.getElementById("mobile-toggle").addEventListener("click", () => {
+  on("mobile-toggle", "click", () => {
     document.getElementById("sidebar").classList.toggle("open");
   });
 
@@ -399,9 +413,9 @@
   }
 
   // ===== FILTERS =====
-  document.getElementById("filter-status").addEventListener("change", applyFilters);
-  document.getElementById("filter-loan-type").addEventListener("change", applyFilters);
-  document.getElementById("filter-search").addEventListener("input", applyFilters);
+  on("filter-status", "change", applyFilters);
+  on("filter-loan-type", "change", applyFilters);
+  on("filter-search", "input", applyFilters);
 
   function applyFilters() {
     const status = document.getElementById("filter-status").value;
@@ -471,8 +485,8 @@
     currentLeadId = null;
   }
 
-  document.getElementById("btn-close-detail").addEventListener("click", closeDetail);
-  document.getElementById("detail-overlay").addEventListener("click", closeDetail);
+  on("btn-close-detail", "click", closeDetail);
+  on("detail-overlay", "click", closeDetail);
 
   // Delete lead
   async function deleteLead(id) {
@@ -494,12 +508,12 @@
     }
   }
 
-  document.getElementById("btn-delete-lead").addEventListener("click", function() {
+  on("btn-delete-lead", "click", function() {
     if (currentLeadId) deleteLead(currentLeadId);
   });
 
   // ===== STATUS UPDATE =====
-  document.getElementById("detail-status").addEventListener("change", async (e) => {
+  on("detail-status", "change", async (e) => {
     if (!currentLeadId) return;
     const newStatus = e.target.value;
     try {
@@ -573,7 +587,7 @@
   }
 
   // Preview button
-  document.getElementById("btn-preview").addEventListener("click", () => {
+  on("btn-preview", "click", () => {
     if (!currentLeadId) return;
     const lead = allLeads.find((l) => l.id === currentLeadId);
     if (!lead || !lead.email) {
@@ -597,20 +611,20 @@
   });
 
   // Send button also shows preview first
-  document.getElementById("btn-send-reply").addEventListener("click", () => {
+  on("btn-send-reply", "click", () => {
     document.getElementById("btn-preview").click();
   });
 
   // Close preview
-  document.getElementById("btn-close-preview").addEventListener("click", () => {
+  on("btn-close-preview", "click", () => {
     document.getElementById("preview-overlay").classList.remove("open");
   });
-  document.getElementById("btn-cancel-preview").addEventListener("click", () => {
+  on("btn-cancel-preview", "click", () => {
     document.getElementById("preview-overlay").classList.remove("open");
   });
 
   // Confirm & send from preview
-  document.getElementById("btn-confirm-send").addEventListener("click", async () => {
+  on("btn-confirm-send", "click", async () => {
     if (!currentLeadId) return;
     const lead = allLeads.find((l) => l.id === currentLeadId);
     if (!lead || !lead.email) return;
@@ -651,7 +665,7 @@
   });
 
   // ===== AI DRAFT =====
-  document.getElementById("btn-ai-draft").addEventListener("click", async () => {
+  on("btn-ai-draft", "click", async () => {
     if (!currentLeadId) return;
     const lead = allLeads.find((l) => l.id === currentLeadId);
     if (!lead) return;
@@ -1135,13 +1149,13 @@
   }
 
   // Social config toggle
-  document.getElementById("social-config-toggle").addEventListener("click", () => {
+  on("social-config-toggle", "click", () => {
     const panel = document.getElementById("social-config-panel");
     panel.style.display = panel.style.display === "none" ? "block" : "none";
   });
 
   // Save social config
-  document.getElementById("btn-save-social-config").addEventListener("click", async () => {
+  on("btn-save-social-config", "click", async () => {
     const platforms = [];
     document.querySelectorAll("#social-config-panel .checkbox-row:first-of-type input:checked").forEach(cb => platforms.push(cb.value));
     const schedulePlatforms = [];
@@ -1168,7 +1182,7 @@
   });
 
   // Run social agent
-  document.getElementById("btn-run-social").addEventListener("click", async () => {
+  on("btn-run-social", "click", async () => {
     const btn = document.getElementById("btn-run-social");
     btn.disabled = true;
     btn.textContent = "Running...";
@@ -1211,7 +1225,7 @@
   });
 
   // Quick generate single post
-  document.getElementById("btn-generate-post").addEventListener("click", async () => {
+  on("btn-generate-post", "click", async () => {
     const platform = document.getElementById("social-platform").value;
     const topic = document.getElementById("social-topic").value.trim();
     const tone = document.getElementById("social-tone").value;
@@ -1241,16 +1255,16 @@
     }
   });
 
-  document.getElementById("btn-copy-post").addEventListener("click", () => {
+  on("btn-copy-post", "click", () => {
     navigator.clipboard.writeText(document.getElementById("social-output-text").value);
     showToast("Copied to clipboard", "success");
   });
 
-  document.getElementById("btn-regenerate-post").addEventListener("click", () => {
+  on("btn-regenerate-post", "click", () => {
     document.getElementById("btn-generate-post").click();
   });
 
-  document.getElementById("btn-save-post").addEventListener("click", async () => {
+  on("btn-save-post", "click", async () => {
     const content = document.getElementById("social-output-text").value;
     if (!content) return;
     await db.collection("social-posts").add({
@@ -1265,8 +1279,8 @@
   });
 
   // Social filters
-  document.getElementById("social-filter-platform").addEventListener("change", renderSocialTable);
-  document.getElementById("social-filter-status").addEventListener("change", renderSocialTable);
+  on("social-filter-platform", "change", renderSocialTable);
+  on("social-filter-status", "change", renderSocialTable);
 
   // ===== WEB SCOUT AGENT =====
   let scoutOpps = [];
@@ -1455,11 +1469,11 @@
     currentScoutOppId = null;
   }
 
-  document.getElementById("btn-close-scout-detail").addEventListener("click", closeScoutDetail);
-  document.getElementById("scout-detail-overlay").addEventListener("click", closeScoutDetail);
+  on("btn-close-scout-detail", "click", closeScoutDetail);
+  on("scout-detail-overlay", "click", closeScoutDetail);
 
   // Detail panel actions
-  document.getElementById("btn-scout-detail-engage").addEventListener("click", async () => {
+  on("btn-scout-detail-engage", "click", async () => {
     if (!currentScoutOppId) return;
     const opp = scoutOpps.find(o => o.id === currentScoutOppId);
     if (!opp) return;
@@ -1500,7 +1514,7 @@
     }
   });
 
-  document.getElementById("btn-scout-detail-dismiss").addEventListener("click", async () => {
+  on("btn-scout-detail-dismiss", "click", async () => {
     if (!currentScoutOppId) return;
     await db.collection("scout-opportunities").doc(currentScoutOppId).update({ status: "dismissed" });
     const opp = scoutOpps.find(o => o.id === currentScoutOppId);
@@ -1511,12 +1525,12 @@
     showToast("Opportunity dismissed", "info");
   });
 
-  document.getElementById("btn-scout-copy-draft").addEventListener("click", () => {
+  on("btn-scout-copy-draft", "click", () => {
     navigator.clipboard.writeText(document.getElementById("scout-detail-draft").value);
     showToast("Draft copied to clipboard", "success");
   });
 
-  document.getElementById("btn-scout-redraft").addEventListener("click", () => {
+  on("btn-scout-redraft", "click", () => {
     document.getElementById("btn-scout-detail-engage").click();
   });
 
@@ -1531,13 +1545,13 @@
   });
 
   // Scout config toggle
-  document.getElementById("scout-config-toggle").addEventListener("click", () => {
+  on("scout-config-toggle", "click", () => {
     const panel = document.getElementById("scout-config-panel");
     panel.style.display = panel.style.display === "none" ? "block" : "none";
   });
 
   // Save scout config
-  document.getElementById("btn-save-scout-config").addEventListener("click", async () => {
+  on("btn-save-scout-config", "click", async () => {
     const config = {
       keywords: document.getElementById("scout-config-keywords").value.trim(),
       subreddits: document.getElementById("scout-config-subreddits").value.trim(),
@@ -1562,7 +1576,7 @@
   });
 
   // Run scout agent
-  document.getElementById("btn-run-scout").addEventListener("click", async () => {
+  on("btn-run-scout", "click", async () => {
     const btn = document.getElementById("btn-run-scout");
     btn.disabled = true;
     btn.textContent = "Scanning...";
@@ -1586,7 +1600,7 @@
   });
 
   // Manual analyze
-  document.getElementById("btn-analyze-opp").addEventListener("click", async () => {
+  on("btn-analyze-opp", "click", async () => {
     const source = document.getElementById("scout-source").value;
     const url = document.getElementById("scout-url").value.trim();
     const description = document.getElementById("scout-description").value.trim();
@@ -1630,7 +1644,7 @@
   });
 
   // Engage from scout output
-  document.getElementById("btn-engage-opp").addEventListener("click", () => {
+  on("btn-engage-opp", "click", () => {
     const desc = document.getElementById("scout-description").value;
     switchView("agent-engage");
     document.getElementById("engage-platform").value = document.getElementById("scout-source").value;
@@ -1638,7 +1652,7 @@
   });
 
   // Dismiss from scout output
-  document.getElementById("btn-dismiss-opp").addEventListener("click", async () => {
+  on("btn-dismiss-opp", "click", async () => {
     if (lastAnalysisOppId) {
       await db.collection("scout-opportunities").doc(lastAnalysisOppId).update({ status: "dismissed" });
       document.getElementById("scout-output").style.display = "none";
@@ -1648,7 +1662,7 @@
   });
 
   // Scout filter
-  document.getElementById("scout-filter-status").addEventListener("change", renderScoutTable);
+  on("scout-filter-status", "change", renderScoutTable);
 
   // ===== ENGAGEMENT AGENT =====
   let engageDrafts = [];
@@ -1759,13 +1773,13 @@
   }
 
   // Engage config toggle
-  document.getElementById("engage-config-toggle").addEventListener("click", () => {
+  on("engage-config-toggle", "click", () => {
     const panel = document.getElementById("engage-config-panel");
     panel.style.display = panel.style.display === "none" ? "block" : "none";
   });
 
   // Save engage config
-  document.getElementById("btn-save-engage-config").addEventListener("click", async () => {
+  on("btn-save-engage-config", "click", async () => {
     const config = {
       minScore: document.getElementById("engage-config-minscore").value,
       tone: document.getElementById("engage-config-tone").value.trim(),
@@ -1785,7 +1799,7 @@
   });
 
   // Run engagement agent
-  document.getElementById("btn-run-engage").addEventListener("click", async () => {
+  on("btn-run-engage", "click", async () => {
     const btn = document.getElementById("btn-run-engage");
     btn.disabled = true;
     btn.textContent = "Running...";
@@ -1809,7 +1823,7 @@
   });
 
   // Quick draft
-  document.getElementById("btn-draft-engage").addEventListener("click", async () => {
+  on("btn-draft-engage", "click", async () => {
     const platform = document.getElementById("engage-platform").value;
     const context = document.getElementById("engage-context").value.trim();
     if (!context) { showToast("Paste the conversation context", "error"); return; }
@@ -1839,16 +1853,16 @@
     }
   });
 
-  document.getElementById("btn-copy-engage").addEventListener("click", () => {
+  on("btn-copy-engage", "click", () => {
     navigator.clipboard.writeText(document.getElementById("engage-output-text").value);
     showToast("Copied to clipboard", "success");
   });
 
-  document.getElementById("btn-redraft-engage").addEventListener("click", () => {
+  on("btn-redraft-engage", "click", () => {
     document.getElementById("btn-draft-engage").click();
   });
 
-  document.getElementById("btn-approve-engage").addEventListener("click", async () => {
+  on("btn-approve-engage", "click", async () => {
     if (currentDraftId) {
       await db.collection("engagement-drafts").doc(currentDraftId).update({ status: "approved", draft: document.getElementById("engage-output-text").value });
       showToast("Draft approved", "success");
@@ -1856,7 +1870,7 @@
     }
   });
 
-  document.getElementById("btn-mark-sent-engage").addEventListener("click", async () => {
+  on("btn-mark-sent-engage", "click", async () => {
     if (currentDraftId) {
       await db.collection("engagement-drafts").doc(currentDraftId).update({ status: "sent", sentAt: new Date().toISOString(), draft: document.getElementById("engage-output-text").value });
       showToast("Marked as sent", "success");
@@ -1866,7 +1880,7 @@
   });
 
   // Engage filter
-  document.getElementById("engage-filter-status").addEventListener("change", renderEngageTable);
+  on("engage-filter-status", "change", renderEngageTable);
 
   // ===== LAZY LOAD AGENTS ON VIEW SWITCH =====
   let socialLoaded = false, scoutLoaded = false, engageLoaded = false;
@@ -2090,7 +2104,7 @@
   }
 
   // ===== CSV EXPORT =====
-  document.getElementById("btn-export-csv").addEventListener("click", function() {
+  on("btn-export-csv", "click", function() {
     if (!allDeals.length) { showToast("No deals to export", "error"); return; }
     var headers = ["Address","City","State","Zip","Type","Strategy","Condition","Status","Deal Score","Purchase Price","Rehab Budget","ARV","Monthly Rent","Suggested Offer","70% Rule","LTV","LTC","Est. Profit","Est. Cash Flow","Actual Purchase","Actual Closing","Actual ARV","Rehab Spent","Total Project Cost","Equity","Down Payment","Loan Amount","Interest Rate","Earnest Money","Holding Costs","Cash Invested","Sale Price","Net Proceeds","Refi Appraisal","Cash Out","Contacts","Activity Notes","Documents","Created"];
     var rows = allDeals.map(function(d) {
@@ -2145,7 +2159,7 @@
   });
 
   // ===== DEAL CLONING =====
-  document.getElementById("btn-clone-deal").addEventListener("click", async function() {
+  on("btn-clone-deal", "click", async function() {
     var deal = allDeals.find(function(d) { return d.id === currentDealId; });
     if (!deal) return;
     if (!confirm("Clone this deal? A new deal will be created with the same property details and a fresh AI analysis.")) return;
@@ -2252,11 +2266,11 @@
   }
 
   // Analyze deal
-  document.getElementById("btn-new-deal").addEventListener("click", showDealForm);
-  document.getElementById("btn-cancel-deal").addEventListener("click", showDealsList);
-  document.getElementById("btn-back-to-deals").addEventListener("click", () => { showDealsList(); loadDeals(); });
+  on("btn-new-deal", "click", showDealForm);
+  on("btn-cancel-deal", "click", showDealsList);
+  on("btn-back-to-deals", "click", () => { showDealsList(); loadDeals(); });
 
-  document.getElementById("btn-analyze-deal").addEventListener("click", async () => {
+  on("btn-analyze-deal", "click", async () => {
     const property = {
       address: document.getElementById("deal-address").value.trim(),
       city: document.getElementById("deal-city").value.trim(),
@@ -2799,12 +2813,12 @@
   }
 
   // Rehab item add/remove
-  document.getElementById("btn-add-rehab-item").addEventListener("click", function() {
+  on("btn-add-rehab-item", "click", function() {
     var form = document.getElementById("deal-rehab-form");
     form.style.display = form.style.display === "none" ? "" : "none";
   });
 
-  document.getElementById("btn-save-rehab-item").addEventListener("click", async function() {
+  on("btn-save-rehab-item", "click", async function() {
     var desc = document.getElementById("rehab-item-desc").value.trim();
     var amount = parseInt(document.getElementById("rehab-item-amount").value) || 0;
     var date = document.getElementById("rehab-item-date").value;
@@ -2975,7 +2989,7 @@
     fetch("https://nominatim.openstreetmap.org/search?format=json&q=" + encodeURIComponent(address) + "&limit=1", {
       headers: { "User-Agent": "UmbrellaPlace-DealAnalyzer/1.0" }
     })
-    .then(function(r) { return r.json(); })
+    .then(function(r) { if (!r.ok) throw new Error("Geocoding failed"); return r.json(); })
     .then(function(results) {
       if (results && results.length > 0) {
         var lat = parseFloat(results[0].lat);
@@ -2983,8 +2997,13 @@
         dealMap.setView([lat, lon], 17);
         dealMapMarker = L.marker([lat, lon]).addTo(dealMap);
         dealMapMarker.bindPopup("<strong>" + escHtml(p.address || "") + "</strong><br>" + escHtml((p.city || "") + (p.state ? ", " + p.state : ""))).openPopup();
+      } else {
+        L.marker(dealMap.getCenter()).addTo(dealMap).bindPopup("Address not found on map").openPopup();
       }
-    }).catch(function() {});
+    }).catch(function(err) {
+      console.warn("Map geocoding error:", err);
+      L.marker(dealMap.getCenter()).addTo(dealMap).bindPopup("Could not locate address").openPopup();
+    });
     setTimeout(function() { if (dealMap) dealMap.invalidateSize(); }, 300);
   }
 
@@ -3275,17 +3294,14 @@
     return currentFloorPlan.rooms.find(function(r) { return r.id === id; });
   }
 
-  function setEditUI(on) {
-    fpEditMode = on;
+  function setEditUI(isOn) {
+    fpEditMode = isOn;
     var toolbar = document.getElementById("fp-edit-toolbar");
     var toggleBtn = document.getElementById("fp-toggle-edit");
-    toolbar.style.display = on ? "flex" : "none";
-    toggleBtn.textContent = on ? "View" : "Edit";
-    toggleBtn.style.color = on ? "#2563eb" : "";
-    document.getElementById("fp-add-room").style.display = on ? "" : "none";
-    document.getElementById("fp-delete-room").style.display = on ? "" : "none";
-    document.getElementById("fp-save-plan").style.display = on ? "" : "none";
-    if (!on) document.getElementById("fp-add-panel").style.display = "none";
+    if (toolbar) toolbar.style.display = isOn ? "flex" : "none";
+    if (toggleBtn) { toggleBtn.textContent = isOn ? "View" : "Edit"; toggleBtn.style.color = isOn ? "#2563eb" : ""; }
+    ["fp-add-room","fp-delete-room","fp-save-plan"].forEach(function(id) { var el = document.getElementById(id); if (el) el.style.display = isOn ? "" : "none"; });
+    if (!isOn) { var ap = document.getElementById("fp-add-panel"); if (ap) ap.style.display = "none"; }
   }
 
   function updateEditStatus() {
@@ -3294,7 +3310,7 @@
   }
 
   // Toggle edit mode
-  document.getElementById("fp-toggle-edit").addEventListener("click", function() {
+  on("fp-toggle-edit", "click", function() {
     if (!currentFloorPlan) return;
     fpEditMode = !fpEditMode;
     fpSelectedRoom = null;
@@ -3303,29 +3319,29 @@
   });
 
   // Zoom
-  document.getElementById("fp-zoom-in").addEventListener("click", function() {
+  on("fp-zoom-in", "click", function() {
     fpZoom = Math.min(fpZoom + 0.25, 3);
     if (currentFloorPlan) drawFloorPlan();
   });
-  document.getElementById("fp-zoom-out").addEventListener("click", function() {
+  on("fp-zoom-out", "click", function() {
     fpZoom = Math.max(fpZoom - 0.25, 0.5);
     if (currentFloorPlan) drawFloorPlan();
   });
-  document.getElementById("fp-floor-select").addEventListener("change", function(e) {
+  on("fp-floor-select", "change", function(e) {
     fpCurrentFloor = parseInt(e.target.value);
     fpSelectedRoom = null;
     if (currentFloorPlan) drawFloorPlan();
   });
 
   // Add room
-  document.getElementById("fp-add-room").addEventListener("click", function() {
+  on("fp-add-room", "click", function() {
     var panel = document.getElementById("fp-add-panel");
     panel.style.display = panel.style.display === "none" ? "" : "none";
   });
-  document.getElementById("fp-add-cancel").addEventListener("click", function() {
+  on("fp-add-cancel", "click", function() {
     document.getElementById("fp-add-panel").style.display = "none";
   });
-  document.getElementById("fp-add-confirm").addEventListener("click", function() {
+  on("fp-add-confirm", "click", function() {
     if (!currentFloorPlan) return;
     var name = document.getElementById("fp-new-name").value.trim() || "New Room";
     var type = document.getElementById("fp-new-type").value;
@@ -3352,7 +3368,7 @@
   });
 
   // Delete selected room
-  document.getElementById("fp-delete-room").addEventListener("click", function() {
+  on("fp-delete-room", "click", function() {
     if (!currentFloorPlan || !fpSelectedRoom) { showToast("Select a room first", "error"); return; }
     var room = findFpRoom(fpSelectedRoom);
     if (!room) return;
@@ -3379,7 +3395,7 @@
   });
 
   // Save floor plan
-  document.getElementById("fp-save-plan").addEventListener("click", async function() {
+  on("fp-save-plan", "click", async function() {
     if (!currentDealId || !currentFloorPlan) return;
     var btn = document.getElementById("fp-save-plan");
     btn.disabled = true; btn.textContent = "Saving...";
@@ -3401,7 +3417,7 @@
   });
 
   // Generate floor plan
-  document.getElementById("btn-generate-floorplan").addEventListener("click", async function() {
+  on("btn-generate-floorplan", "click", async function() {
     if (!currentDealId) return;
     var deal = allDeals.find(function(d) { return d.id === currentDealId; });
     if (!deal) return;
@@ -3452,12 +3468,12 @@
     });
   }
 
-  document.getElementById("btn-add-activity").addEventListener("click", function() {
+  on("btn-add-activity", "click", function() {
     var form = document.getElementById("deal-activity-form");
     form.style.display = form.style.display === "none" ? "" : "none";
   });
 
-  document.getElementById("btn-save-activity").addEventListener("click", async function() {
+  on("btn-save-activity", "click", async function() {
     var text = document.getElementById("activity-text").value.trim();
     if (!text) { showToast("Note text is required", "error"); return; }
     var entry = { id: uid(), date: new Date().toISOString(), category: document.getElementById("activity-category").value, text: text };
@@ -3503,12 +3519,12 @@
     });
   }
 
-  document.getElementById("btn-add-contact").addEventListener("click", function() {
+  on("btn-add-contact", "click", function() {
     var form = document.getElementById("deal-contact-form");
     form.style.display = form.style.display === "none" ? "" : "none";
   });
 
-  document.getElementById("btn-save-contact").addEventListener("click", async function() {
+  on("btn-save-contact", "click", async function() {
     var name = document.getElementById("contact-name").value.trim();
     if (!name) { showToast("Contact name required", "error"); return; }
     var contact = { id: uid(), role: document.getElementById("contact-role").value, name: name, phone: document.getElementById("contact-phone").value.trim(), email: document.getElementById("contact-email").value.trim(), company: document.getElementById("contact-company").value.trim(), notes: document.getElementById("contact-notes").value.trim() };
@@ -3553,12 +3569,12 @@
     });
   }
 
-  document.getElementById("btn-add-document").addEventListener("click", function() {
+  on("btn-add-document", "click", function() {
     var form = document.getElementById("deal-document-form");
     form.style.display = form.style.display === "none" ? "" : "none";
   });
 
-  document.getElementById("btn-save-document").addEventListener("click", async function() {
+  on("btn-save-document", "click", async function() {
     var name = document.getElementById("doc-name").value.trim();
     var url = document.getElementById("doc-url").value.trim();
     if (!name || !url) { showToast("Document name and URL required", "error"); return; }
@@ -3712,7 +3728,7 @@
   }
 
   // Phase tab switching
-  document.getElementById("deal-phase-tabs").addEventListener("click", (e) => {
+  on("deal-phase-tabs", "click", (e) => {
     const tab = e.target.closest(".deal-phase-tab");
     if (!tab) return;
     currentPhase = tab.dataset.phase;
@@ -3721,7 +3737,7 @@
   });
 
   // Status update
-  document.getElementById("deal-detail-status").addEventListener("change", async (e) => {
+  on("deal-detail-status", "change", async (e) => {
     const newStatus = e.target.value;
     if (!currentDealId) return;
     try {
@@ -3753,7 +3769,7 @@
   });
 
   // Re-analyze
-  document.getElementById("btn-reanalyze").addEventListener("click", async () => {
+  on("btn-reanalyze", "click", async () => {
     const deal = allDeals.find(d => d.id === currentDealId);
     if (!deal) return;
     const btn = document.getElementById("btn-reanalyze");
@@ -3781,7 +3797,7 @@
   });
 
   // Delete deal
-  document.getElementById("btn-delete-deal").addEventListener("click", async () => {
+  on("btn-delete-deal", "click", async () => {
     if (!currentDealId || !confirm("Delete this deal? This cannot be undone.")) return;
     try {
       await db.collection("deal-analyzer").doc(currentDealId).delete();
@@ -3795,9 +3811,9 @@
   });
 
   // Filters
-  ["deal-filter-status", "deal-filter-strategy", "deal-filter-search"].forEach(id => {
-    document.getElementById(id).addEventListener("input", renderDealsTable);
-    document.getElementById(id).addEventListener("change", renderDealsTable);
+  ["deal-filter-status", "deal-filter-strategy", "deal-filter-search"].forEach(function(id) {
+    on(id, "input", renderDealsTable);
+    on(id, "change", renderDealsTable);
   });
 
   // ===== PROPERTY MANAGEMENT =====
@@ -3924,14 +3940,15 @@
     renderPmMaintenance(deal);
   }
 
-  document.getElementById("pm-btn-back").addEventListener("click", function() {
+  on("pm-btn-back", "click", function() {
     document.getElementById("pm-detail-section").style.display = "none";
     document.getElementById("pm-list-section").style.display = "";
+    clearTimeout(pmPropTimer); clearTimeout(pmLotTimer);
     pmCurrentId = null;
     renderPropertyList();
   });
 
-  document.getElementById("pm-btn-goto-deal").addEventListener("click", function() {
+  on("pm-btn-goto-deal", "click", function() {
     if (!pmCurrentId) return;
     // Switch to deal analyzer and open this deal
     document.querySelectorAll(".nav-item").forEach(function(n) { n.classList.remove("active"); });
@@ -3984,9 +4001,10 @@
     }
   }
 
-  document.getElementById("pm-btn-delete-prop").addEventListener("click", function() {
+  on("pm-btn-delete-prop", "click", function() {
     if (pmCurrentId) deleteProperty(pmCurrentId);
   });
+  document.addEventListener("pm-delete-prop", function() { if (pmCurrentId) deleteProperty(pmCurrentId); });
 
   // PM Map
   var pmMap = null;
@@ -4006,7 +4024,7 @@
     fetch("https://nominatim.openstreetmap.org/search?format=json&q=" + encodeURIComponent(address) + "&limit=1", {
       headers: { "User-Agent": "UmbrellaPlace-PM/1.0" }
     })
-    .then(function(r) { return r.json(); })
+    .then(function(r) { if (!r.ok) throw new Error("Geocoding failed"); return r.json(); })
     .then(function(results) {
       if (results && results.length > 0) {
         var lat = parseFloat(results[0].lat);
@@ -4014,8 +4032,13 @@
         pmMap.setView([lat, lon], 17);
         L.marker([lat, lon]).addTo(pmMap)
           .bindPopup("<strong>" + escHtml(p.address || "") + "</strong><br>" + escHtml((p.city || "") + (p.state ? ", " + p.state : ""))).openPopup();
+      } else {
+        L.marker(pmMap.getCenter()).addTo(pmMap).bindPopup("Address not found on map").openPopup();
       }
-    }).catch(function() {});
+    }).catch(function(err) {
+      console.warn("PM map geocoding error:", err);
+      L.marker(pmMap.getCenter()).addTo(pmMap).bindPopup("Could not locate address").openPopup();
+    });
     setTimeout(function() { if (pmMap) pmMap.invalidateSize(); }, 300);
   }
 
@@ -4330,15 +4353,13 @@
     }
   }
 
-  function setPmEditUI(on) {
-    pmFpEdit = on;
-    document.getElementById("pm-fp-edit-bar").style.display = on ? "flex" : "none";
-    document.getElementById("pm-fp-edit").textContent = on ? "View" : "Edit";
-    document.getElementById("pm-fp-edit").style.color = on ? "#2563eb" : "";
-    document.getElementById("pm-fp-add-room").style.display = on ? "" : "none";
-    document.getElementById("pm-fp-del-room").style.display = on ? "" : "none";
-    document.getElementById("pm-fp-save").style.display = on ? "" : "none";
-    if (!on) document.getElementById("pm-fp-add-panel").style.display = "none";
+  function setPmEditUI(isOn) {
+    pmFpEdit = isOn;
+    var ids = { "pm-fp-edit-bar": isOn ? "flex" : "none", "pm-fp-add-room": isOn ? "" : "none", "pm-fp-del-room": isOn ? "" : "none", "pm-fp-save": isOn ? "" : "none" };
+    Object.keys(ids).forEach(function(id) { var el = document.getElementById(id); if (el) el.style.display = ids[id]; });
+    var editBtn = document.getElementById("pm-fp-edit");
+    if (editBtn) { editBtn.textContent = isOn ? "View" : "Edit"; editBtn.style.color = isOn ? "#2563eb" : ""; }
+    if (!isOn) { var ap = document.getElementById("pm-fp-add-panel"); if (ap) ap.style.display = "none"; }
   }
 
   function updatePmDirty() {
@@ -4613,20 +4634,20 @@
   });
 
   // PM edit controls
-  document.getElementById("pm-fp-edit").addEventListener("click", function() {
+  on("pm-fp-edit", "click", function() {
     if (!pmFp) return; pmFpEdit = !pmFpEdit; pmFpSel = null; setPmEditUI(pmFpEdit); drawPmFloorPlan();
   });
-  document.getElementById("pm-fp-zoom-in").addEventListener("click", function() { pmFpZoom = Math.min(pmFpZoom + 0.25, 3); if (pmFp) drawPmFloorPlan(); });
-  document.getElementById("pm-fp-zoom-out").addEventListener("click", function() { pmFpZoom = Math.max(pmFpZoom - 0.25, 0.5); if (pmFp) drawPmFloorPlan(); });
-  document.getElementById("pm-fp-floor").addEventListener("change", function(e) { pmFpFloor = parseInt(e.target.value); pmFpSel = null; if (pmFp) drawPmFloorPlan(); });
+  on("pm-fp-zoom-in", "click", function() { pmFpZoom = Math.min(pmFpZoom + 0.25, 3); if (pmFp) drawPmFloorPlan(); });
+  on("pm-fp-zoom-out", "click", function() { pmFpZoom = Math.max(pmFpZoom - 0.25, 0.5); if (pmFp) drawPmFloorPlan(); });
+  on("pm-fp-floor", "change", function(e) { pmFpFloor = parseInt(e.target.value); pmFpSel = null; if (pmFp) drawPmFloorPlan(); });
 
   // Add room
-  document.getElementById("pm-fp-add-room").addEventListener("click", function() {
+  on("pm-fp-add-room", "click", function() {
     var p = document.getElementById("pm-fp-add-panel");
     p.style.display = p.style.display === "none" ? "" : "none";
   });
-  document.getElementById("pm-fp-add-cancel").addEventListener("click", function() { document.getElementById("pm-fp-add-panel").style.display = "none"; });
-  document.getElementById("pm-fp-add-confirm").addEventListener("click", function() {
+  on("pm-fp-add-cancel", "click", function() { document.getElementById("pm-fp-add-panel").style.display = "none"; });
+  on("pm-fp-add-confirm", "click", function() {
     if (!pmFp) return;
     var name = document.getElementById("pm-fp-new-name").value.trim() || "New Room";
     var type = document.getElementById("pm-fp-new-type").value;
@@ -4646,7 +4667,7 @@
   });
 
   // Delete room
-  document.getElementById("pm-fp-del-room").addEventListener("click", function() {
+  on("pm-fp-del-room", "click", function() {
     if (!pmFp || !pmFpSel) { showToast("Select a room first", "error"); return; }
     var room = pmFp.rooms.find(function(r) { return r.id === pmFpSel; });
     if (!room || !confirm('Delete "' + room.name + '"?')) return;
@@ -4658,7 +4679,7 @@
   });
 
   // Save PM floor plan
-  document.getElementById("pm-fp-save").addEventListener("click", async function() {
+  on("pm-fp-save", "click", async function() {
     if (!pmCurrentId || !pmFp) return;
     var btn = document.getElementById("pm-fp-save");
     btn.disabled = true; btn.textContent = "Saving...";
@@ -4725,14 +4746,14 @@
     });
   }
 
-  document.getElementById("pm-btn-add-item").addEventListener("click", function() {
+  on("pm-btn-add-item", "click", function() {
     var f = document.getElementById("pm-add-item-form");
     f.style.display = f.style.display === "none" ? "" : "none";
   });
 
   // Auto-populate with preview modal
   var pendingAutoItems = [];
-  document.getElementById("pm-btn-auto-populate").addEventListener("click", function() {
+  on("pm-btn-auto-populate", "click", function() {
     if (!pmCurrentId) return;
     var deal = allDeals.find(function(d) { return d.id === pmCurrentId; });
     if (!deal) return;
@@ -4777,20 +4798,20 @@
     document.getElementById("pm-auto-preview-confirm").disabled = checked === 0;
   }
 
-  document.getElementById("pm-auto-select-all").addEventListener("change", function() {
+  on("pm-auto-select-all", "change", function() {
     var checked = this.checked;
     document.querySelectorAll(".pm-auto-item-check").forEach(function(cb) { cb.checked = checked; });
     updateAutoPreviewCount();
   });
 
-  document.getElementById("pm-auto-preview-close").addEventListener("click", function() {
+  on("pm-auto-preview-close", "click", function() {
     document.getElementById("pm-auto-preview-overlay").style.display = "none";
   });
-  document.getElementById("pm-auto-preview-cancel").addEventListener("click", function() {
+  on("pm-auto-preview-cancel", "click", function() {
     document.getElementById("pm-auto-preview-overlay").style.display = "none";
   });
 
-  document.getElementById("pm-auto-preview-confirm").addEventListener("click", async function() {
+  on("pm-auto-preview-confirm", "click", async function() {
     var selected = {};
     document.querySelectorAll(".pm-auto-item-check:checked").forEach(function(cb) { selected[cb.dataset.itemId] = true; });
     var items = pendingAutoItems.filter(function(i) { return selected[i.id]; });
@@ -4813,7 +4834,7 @@
     } catch (err) { showToast("Failed to save", "error"); }
   });
 
-  document.getElementById("pm-btn-save-item").addEventListener("click", async function() {
+  on("pm-btn-save-item", "click", async function() {
     var name = document.getElementById("pm-item-name").value.trim();
     var room = document.getElementById("pm-item-room").value;
     var category = document.getElementById("pm-item-category").value;
@@ -4857,8 +4878,8 @@
     } catch (err) { showToast("Failed to remove", "error"); }
   }
 
-  document.getElementById("pm-item-room-filter").addEventListener("change", function() { renderPmItems(); });
-  document.getElementById("pm-item-cat-filter").addEventListener("change", function() { renderPmItems(); });
+  on("pm-item-room-filter", "change", function() { renderPmItems(); });
+  on("pm-item-cat-filter", "change", function() { renderPmItems(); });
 
   // Maintenance
   function renderPmMaintenance(deal) {
@@ -4886,12 +4907,12 @@
     });
   }
 
-  document.getElementById("pm-btn-add-maint").addEventListener("click", function() {
+  on("pm-btn-add-maint", "click", function() {
     var f = document.getElementById("pm-maint-form");
     f.style.display = f.style.display === "none" ? "" : "none";
   });
 
-  document.getElementById("pm-btn-save-maint").addEventListener("click", async function() {
+  on("pm-btn-save-maint", "click", async function() {
     var desc = document.getElementById("pm-maint-desc").value.trim();
     var type = document.getElementById("pm-maint-type").value;
     var cost = parseInt(document.getElementById("pm-maint-cost").value) || 0;
@@ -4931,18 +4952,18 @@
   }
 
   // PM filters
-  document.getElementById("pm-filter-status").addEventListener("change", renderPropertyList);
-  document.getElementById("pm-filter-search").addEventListener("input", renderPropertyList);
+  on("pm-filter-status", "change", renderPropertyList);
+  on("pm-filter-search", "input", renderPropertyList);
 
   // ===== ADD PROPERTY =====
-  document.getElementById("pm-btn-add-property").addEventListener("click", function() {
+  on("pm-btn-add-property", "click", function() {
     var panel = document.getElementById("pm-add-property-panel");
     panel.style.display = panel.style.display === "none" ? "" : "none";
     if (panel.style.display !== "none") populateImportDropdown();
   });
 
   // Tab switching
-  document.getElementById("pm-add-tab-import").addEventListener("click", function() {
+  on("pm-add-tab-import", "click", function() {
     document.getElementById("pm-add-import").style.display = "";
     document.getElementById("pm-add-new").style.display = "none";
     this.style.borderBottom = "2px solid var(--accent,#1a3c6e)";
@@ -4950,7 +4971,7 @@
     document.getElementById("pm-add-tab-new").style.borderBottom = "none";
     document.getElementById("pm-add-tab-new").style.color = "var(--text-muted)";
   });
-  document.getElementById("pm-add-tab-new").addEventListener("click", function() {
+  on("pm-add-tab-new", "click", function() {
     document.getElementById("pm-add-import").style.display = "none";
     document.getElementById("pm-add-new").style.display = "";
     this.style.borderBottom = "2px solid var(--accent,#1a3c6e)";
@@ -4978,7 +4999,7 @@
   }
 
   // Preview selected deal
-  document.getElementById("pm-import-deal").addEventListener("change", function() {
+  on("pm-import-deal", "change", function() {
     var id = this.value;
     var preview = document.getElementById("pm-import-preview");
     var btn = document.getElementById("pm-import-confirm");
@@ -4998,7 +5019,7 @@
   });
 
   // Import deal as property (mark it so it shows in properties)
-  document.getElementById("pm-import-confirm").addEventListener("click", async function() {
+  on("pm-import-confirm", "click", async function() {
     var id = document.getElementById("pm-import-deal").value;
     if (!id) return;
     var deal = allDeals.find(function(d) { return d.id === id; });
@@ -5020,7 +5041,7 @@
   });
 
   // Create brand new property
-  document.getElementById("pm-new-confirm").addEventListener("click", async function() {
+  on("pm-new-confirm", "click", async function() {
     var address = document.getElementById("pm-new-address").value.trim();
     if (!address) { showToast("Address is required", "error"); return; }
     var beds = parseInt(document.getElementById("pm-new-beds").value) || 0;
