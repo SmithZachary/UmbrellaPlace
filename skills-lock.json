@@ -1,6 +1,11 @@
 {
   "version": 1,
   "skills": {
+    "find-skills": {
+      "source": "vercel-labs/skills",
+      "sourceType": "github",
+      "computedHash": "645b891da1edbae76ab79c7b088d4e73397464f8396edaf773c0e01971ce75d6"
+    },
     "frontend-design": {
       "source": "anthropics/skills",
       "sourceType": "github",
@@ -15,6 +20,16 @@
       "source": "seo-skills/seo-audit-skill",
       "sourceType": "github",
       "computedHash": "13b10283d313b74c55378e73248ac49839df3175e56c00519b884f70c7f492de"
+    },
+    "threejs-animation": {
+      "source": "cloudai-x/threejs-skills",
+      "sourceType": "github",
+      "computedHash": "457900cae6babbe092e3226a2ac9ae5d09a84199c1b3d5050ed400d4f56a9d82"
+    },
+    "ui-animation": {
+      "source": "mblode/agent-skills",
+      "sourceType": "github",
+      "computedHash": "0588cebaa7f49b0a1864a8a86220f6f1840a279068c14e472b15718c5ddb056d"
     },
     "web-design-guidelines": {
       "source": "vercel-labs/agent-skills",

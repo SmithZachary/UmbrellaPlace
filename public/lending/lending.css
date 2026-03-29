@@ -5,19 +5,19 @@
 }
 
 :root {
-  --bg-primary: #ffffff;
-  --bg-secondary: #f7f8fa;
+  --bg-primary: #faf8f4;
+  --bg-secondary: #f5f2ed;
   --bg-card: #ffffff;
-  --bg-card-hover: #f0f2f5;
+  --bg-card-hover: #f5f2ed;
   --accent: #1a3c6e;
   --accent-light: #2a5ba8;
   --gold: #c9a84c;
   --gold-hover: #b8952e;
-  --text-primary: #1a1a2e;
-  --text-secondary: #5a6478;
-  --text-light: #8a94a6;
-  --border: #e2e6ed;
-  --border-light: #eef0f4;
+  --text-primary: #1a1a1a;
+  --text-secondary: #5a5a5a;
+  --text-light: #8a8a8a;
+  --border: #e2ddd5;
+  --border-light: #eee9e1;
   --radius: 10px;
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.06);
   --shadow-md: 0 4px 20px rgba(0, 0, 0, 0.06);
@@ -70,26 +70,6 @@ body {
   }
 }
 
-@keyframes scaleIn {
-  from {
-    opacity: 0;
-    transform: scale(0.9);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
-@keyframes shimmer {
-  0% { background-position: -200% center; }
-  100% { background-position: 200% center; }
-}
-
-@keyframes float {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-8px); }
-}
 
 /* Scroll-triggered animation classes */
 .animate {
@@ -163,9 +143,9 @@ nav {
 }
 
 nav.scrolled {
-  background: rgba(255, 255, 255, 0.92);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  background: rgba(250, 248, 244, 0.92);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   box-shadow: 0 1px 0 var(--border);
   padding: 0.8rem 2.5rem;
 }
@@ -179,25 +159,20 @@ nav.scrolled {
 }
 
 .nav-brand img {
-  height: 192px;
+  height: 28px;
   width: auto;
-  margin: -60px -75px -60px -20px;
-  transition: transform 0.3s ease, height 0.4s ease, margin 0.4s ease;
-}
-
-nav.scrolled .nav-brand img {
-  height: 120px;
-  margin: -35px -45px -35px -12px;
+  transition: transform 0.3s ease;
 }
 
 .nav-brand:hover img {
-  transform: scale(1.05);
+  transform: scale(1.08);
 }
 
 .nav-brand span {
-  font-weight: 700;
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-weight: 600;
   font-size: 1.25rem;
-  letter-spacing: 0.3px;
+  letter-spacing: 0.02em;
 }
 
 .nav-links {
@@ -403,7 +378,6 @@ nav.scrolled .nav-brand img {
   height: 600px;
   border-radius: 50%;
   background: radial-gradient(circle, rgba(26, 60, 110, 0.03) 0%, transparent 70%);
-  animation: float 8s ease-in-out infinite;
 }
 
 #hero::after {
@@ -415,7 +389,6 @@ nav.scrolled .nav-brand img {
   height: 500px;
   border-radius: 50%;
   background: radial-gradient(circle, rgba(201, 168, 76, 0.04) 0%, transparent 70%);
-  animation: float 10s ease-in-out infinite 2s;
 }
 
 .hero-content {
@@ -1048,7 +1021,6 @@ section {
   height: 3px;
   background: linear-gradient(90deg, var(--accent), var(--gold), var(--accent));
   background-size: 200% 100%;
-  animation: shimmer 3s linear infinite;
 }
 
 .intake-form h3 {
@@ -1186,7 +1158,6 @@ section {
   justify-content: center;
   text-align: center;
   padding: 2rem;
-  animation: scaleIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 .success-icon {
@@ -1382,7 +1353,6 @@ footer {
   height: 3px;
   background: linear-gradient(90deg, var(--accent), var(--gold), var(--accent));
   background-size: 200% 100%;
-  animation: shimmer 3s linear infinite;
 }
 
 .calculator-inputs h3,
@@ -2104,13 +2074,7 @@ footer {
   }
 
   .nav-brand img {
-    height: 100px;
-    margin: -30px -40px -30px -10px;
-  }
-
-  nav.scrolled .nav-brand img {
-    height: 72px;
-    margin: -20px -28px -20px -8px;
+    height: 24px;
   }
 
   .nav-brand span {
@@ -2385,13 +2349,7 @@ footer {
   }
 
   .nav-brand img {
-    height: 80px;
-    margin: -22px -32px -22px -8px;
-  }
-
-  nav.scrolled .nav-brand img {
-    height: 56px;
-    margin: -14px -22px -14px -6px;
+    height: 22px;
   }
 
   .nav-brand span {

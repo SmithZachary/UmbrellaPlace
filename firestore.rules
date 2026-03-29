@@ -53,6 +53,11 @@ service cloud.firestore {
       allow read, write: if isAdmin();
     }
 
+    // Deal analyzer — admins only
+    match /deal-analyzer/{docId} {
+      allow read, write: if isAdmin();
+    }
+
     // Deny everything else by default
     match /{document=**} {
       allow read, write: if false;

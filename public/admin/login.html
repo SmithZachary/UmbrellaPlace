@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Admin Login | Umbrella Place</title>
   <meta name="robots" content="noindex, nofollow" />
-  <link rel="icon" type="image/svg+xml" href="../favicon.svg" />
-  <link rel="stylesheet" href="admin.css" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="stylesheet" href="/admin/admin.css" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
@@ -15,7 +15,7 @@
   <div class="login-wrapper">
     <div class="login-card">
       <div class="login-logo">
-        <img src="../assets/logo.svg" alt="Umbrella Place" />
+        <img src="/assets/logo.svg" alt="Umbrella Place" />
         <span>Umbrella Place</span>
       </div>
       <h1>Admin Dashboard</h1>
@@ -53,7 +53,7 @@
 
     // If already signed in, redirect to dashboard
     auth.onAuthStateChanged((user) => {
-      if (user) window.location.href = "index.html";
+      if (user) window.location.href = "/admin";
     });
 
     const form = document.getElementById("login-form");
@@ -71,7 +71,7 @@
 
       try {
         await auth.signInWithEmailAndPassword(email, password);
-        window.location.href = "index.html";
+        window.location.href = "/admin";
       } catch (err) {
         let msg = "Invalid email or password.";
         if (err.code === "auth/too-many-requests") msg = "Too many attempts. Try again later.";

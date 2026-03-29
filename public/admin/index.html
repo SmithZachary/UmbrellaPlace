@@ -5,12 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Dashboard | Umbrella Place Admin</title>
   <meta name="robots" content="noindex, nofollow" />
-  <link rel="icon" type="image/svg+xml" href="../favicon.svg" />
-  <link rel="stylesheet" href="admin.css" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="stylesheet" href="/admin/admin.css" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 </head>
 <body>
   <!-- Loading screen -->
@@ -25,7 +27,7 @@
     <!-- Sidebar -->
     <aside class="sidebar" id="sidebar">
       <div class="sidebar-logo">
-        <img src="../assets/logo.svg" alt="Umbrella Place" />
+        <img src="/assets/logo.svg" alt="Umbrella Place" />
         <span>Admin</span>
       </div>
 
@@ -46,6 +48,7 @@
           <button class="nav-item" data-view="agent-inbound">
             <span class="nav-icon">&#9889;</span> Inbound Lead
           </button>
+          <!--
           <button class="nav-item" data-view="agent-social">
             <span class="nav-icon">&#128227;</span> Social Media
           </button>
@@ -54,6 +57,17 @@
           </button>
           <button class="nav-item" data-view="agent-engage">
             <span class="nav-icon">&#128172;</span> Engagement
+          </button>
+          -->
+        </div>
+
+        <div class="nav-section">
+          <div class="nav-section-title">Tools</div>
+          <button class="nav-item" data-view="deal-analyzer">
+            <span class="nav-icon">&#128200;</span> Deal Analyzer
+          </button>
+          <button class="nav-item" data-view="property-mgmt">
+            <span class="nav-icon">&#127968;</span> Properties
           </button>
         </div>
       </nav>
@@ -76,6 +90,15 @@
         <div style="display:flex;align-items:center;gap:0.75rem">
           <button class="mobile-sidebar-toggle" id="mobile-toggle">&#9776;</button>
           <span class="topbar-title" id="topbar-title">Overview</span>
+        </div>
+        <!-- Profile tabs hidden — single combined view -->
+        <div class="profile-tabs" style="display:none">
+          <button class="profile-tab active" data-profile="zachary">
+            <span class="profile-tab-avatar">ZS</span> Zachary
+          </button>
+          <button class="profile-tab" data-profile="cole">
+            <span class="profile-tab-avatar">CS</span> Cole
+          </button>
         </div>
         <div class="topbar-actions">
           <span class="topbar-date" id="topbar-date"></span>
@@ -184,6 +207,7 @@
                     <th>State</th>
                     <th>Status</th>
                     <th>Date</th>
+                    <th></th>
                   </tr>
                 </thead>
                 <tbody id="all-leads-table"></tbody>
@@ -202,7 +226,10 @@
         <div class="detail-panel" id="detail-panel">
           <div class="detail-header">
             <h3 id="detail-name">Lead Details</h3>
-            <button class="btn-close-detail" id="btn-close-detail">&times;</button>
+            <div style="display:flex;gap:0.5rem;align-items:center">
+              <button class="btn btn-secondary btn-sm" id="btn-delete-lead" style="color:#dc2626;font-size:0.75rem">Delete</button>
+              <button class="btn-close-detail" id="btn-close-detail">&times;</button>
+            </div>
           </div>
           <div class="detail-body">
             <div class="detail-section">
@@ -698,8 +725,8 @@ landlords"></textarea>
                     </select>
                   </div>
                   <div class="agent-form-group">
-                    <label>URL (optional)</label>
-                    <input type="text" id="scout-url" class="filter-input" style="width:100%" placeholder="https://..." />
+                    <label>Post URL *</label>
+                    <input type="text" id="scout-url" class="filter-input" style="width:100%" placeholder="https://www.biggerpockets.com/forums/..." required />
                   </div>
                 </div>
                 <div class="agent-form-group" style="margin-top:0.75rem">
@@ -992,6 +1019,874 @@ landlords"></textarea>
           </div>
         </div>
 
+        <!-- ===== DEAL ANALYZER VIEW ===== -->
+        <div class="view" id="view-deal-analyzer">
+
+          <!-- Portfolio Dashboard -->
+          <div id="deals-list-card">
+            <div class="stats-grid" id="portfolio-stats" style="margin-bottom:1rem"></div>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem">
+              <div class="card">
+                <div class="card-header"><h3>Deals by Status</h3></div>
+                <div class="card-body" style="padding:1rem;display:flex;align-items:center;justify-content:center">
+                  <div style="height:200px;width:100%;position:relative"><canvas id="portfolio-chart-status"></canvas></div>
+                </div>
+              </div>
+              <div class="card">
+                <div class="card-header"><h3>Deals by Strategy</h3></div>
+                <div class="card-body" style="padding:1rem;display:flex;align-items:center;justify-content:center">
+                  <div style="height:200px;width:100%;position:relative"><canvas id="portfolio-chart-strategy"></canvas></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Saved Deals Table -->
+            <div class="card">
+              <div class="card-header">
+                <h3>Saved Deals</h3>
+                <div style="display:flex;gap:0.5rem">
+                  <button class="btn btn-secondary btn-sm" id="btn-export-csv">Export CSV</button>
+                  <button class="btn btn-primary btn-sm" id="btn-new-deal">+ New Deal</button>
+                </div>
+              </div>
+              <div style="padding:0.5rem 1rem;display:flex;gap:0.5rem;flex-wrap:wrap">
+                <select class="filter-select" id="deal-filter-status" style="min-width:140px">
+                  <option value="">All Statuses</option>
+                  <option value="prospecting">Prospecting</option>
+                  <option value="under-contract">Under Contract</option>
+                  <option value="closing">Closing</option>
+                  <option value="rehab">Rehab</option>
+                  <option value="exit">Exit</option>
+                  <option value="complete">Complete</option>
+                  <option value="dead">Dead</option>
+                </select>
+                <select class="filter-select" id="deal-filter-strategy" style="min-width:140px">
+                  <option value="">All Strategies</option>
+                  <option value="fix-flip">Fix &amp; Flip</option>
+                  <option value="brrrr">BRRRR</option>
+                  <option value="buy-hold">Buy &amp; Hold</option>
+                  <option value="wholesale">Wholesale</option>
+                  <option value="new-construction">New Construction</option>
+                </select>
+                <input type="text" class="filter-select" id="deal-filter-search" placeholder="Search address..." style="min-width:180px" />
+              </div>
+              <div class="card-body">
+                <table class="data-table">
+                  <thead>
+                    <tr><th>Address</th><th>Strategy</th><th>Score</th><th>Purchase</th><th>Status</th><th>Date</th><th></th></tr>
+                  </thead>
+                  <tbody id="deals-table-body"></tbody>
+                </table>
+                <div class="empty-state" id="deals-empty" style="display:none">
+                  <div class="empty-state-icon">&#128200;</div>
+                  <h4>No deals yet</h4>
+                  <p>Click "+ New Deal" to analyze your first property.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- New Deal Input Form -->
+          <div id="deal-form-section" style="display:none">
+            <div class="card">
+              <div class="card-header">
+                <h3>New Deal Analysis</h3>
+                <button class="btn btn-secondary btn-sm" id="btn-cancel-deal">&times; Cancel</button>
+              </div>
+              <div class="card-body" style="padding:1.25rem">
+                <div class="deal-form-group" style="margin-bottom:0.75rem">
+                  <label>Property Address</label>
+                  <input type="text" id="deal-address" placeholder="123 Main St" />
+                </div>
+                <div class="deal-form-row" style="grid-template-columns:2fr 1fr 1fr">
+                  <div class="deal-form-group"><label>City</label><input type="text" id="deal-city" /></div>
+                  <div class="deal-form-group"><label>State</label>
+                    <select id="deal-state">
+                      <option value="">--</option>
+                      <option value="AL">AL</option><option value="AK">AK</option><option value="AZ">AZ</option><option value="AR">AR</option><option value="CA">CA</option><option value="CO">CO</option><option value="CT">CT</option><option value="DE">DE</option><option value="FL">FL</option><option value="GA">GA</option><option value="HI">HI</option><option value="ID">ID</option><option value="IL">IL</option><option value="IN">IN</option><option value="IA">IA</option><option value="KS">KS</option><option value="KY">KY</option><option value="LA">LA</option><option value="ME">ME</option><option value="MD">MD</option><option value="MA">MA</option><option value="MI">MI</option><option value="MN">MN</option><option value="MS">MS</option><option value="MO">MO</option><option value="MT">MT</option><option value="NE">NE</option><option value="NV">NV</option><option value="NH">NH</option><option value="NJ">NJ</option><option value="NM">NM</option><option value="NY">NY</option><option value="NC">NC</option><option value="ND">ND</option><option value="OH">OH</option><option value="OK">OK</option><option value="OR">OR</option><option value="PA">PA</option><option value="RI">RI</option><option value="SC">SC</option><option value="SD">SD</option><option value="TN">TN</option><option value="TX">TX</option><option value="UT">UT</option><option value="VT">VT</option><option value="VA">VA</option><option value="WA">WA</option><option value="WV">WV</option><option value="WI">WI</option><option value="WY">WY</option>
+                    </select>
+                  </div>
+                  <div class="deal-form-group"><label>Zip</label><input type="text" id="deal-zip" maxlength="5" /></div>
+                </div>
+                <div class="deal-form-row" style="grid-template-columns:1fr 1fr 1fr">
+                  <div class="deal-form-group"><label>Property Type</label>
+                    <select id="deal-property-type">
+                      <option value="sfr">Single Family</option><option value="duplex">Duplex</option><option value="triplex">Triplex</option><option value="fourplex">Fourplex</option><option value="multi-family">Multi-Family (5+)</option><option value="mixed-use">Mixed-Use</option>
+                    </select>
+                  </div>
+                  <div class="deal-form-group"><label>Strategy</label>
+                    <select id="deal-strategy">
+                      <option value="fix-flip">Fix &amp; Flip</option><option value="brrrr">BRRRR</option><option value="buy-hold">Buy &amp; Hold Rental</option><option value="wholesale">Wholesale</option><option value="new-construction">New Construction</option>
+                    </select>
+                  </div>
+                  <div class="deal-form-group"><label>Condition</label>
+                    <select id="deal-condition">
+                      <option value="turnkey">Turnkey</option><option value="light-rehab">Light Rehab</option><option value="heavy-rehab">Heavy Rehab</option><option value="gut-job">Gut Job</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="deal-form-row" style="grid-template-columns:1fr 1fr 1fr">
+                  <div class="deal-form-group"><label>Purchase Price ($)</label><input type="number" id="deal-purchase-price" placeholder="180000" /></div>
+                  <div class="deal-form-group"><label>Rehab Cost ($)</label><input type="number" id="deal-rehab-cost" placeholder="45000" /></div>
+                  <div class="deal-form-group"><label>ARV / Market Value ($)</label><input type="number" id="deal-arv" placeholder="290000" /></div>
+                </div>
+                <div class="deal-form-row" style="grid-template-columns:1fr 1fr 1fr">
+                  <div class="deal-form-group"><label>Monthly Rent ($)</label><input type="number" id="deal-rent" placeholder="2200" /></div>
+                  <div class="deal-form-group"><label>Sq Ft</label><input type="number" id="deal-sqft" placeholder="1800" /></div>
+                  <div class="deal-form-group"><label>Year Built</label><input type="number" id="deal-year-built" placeholder="1985" /></div>
+                </div>
+                <div class="deal-form-row" style="grid-template-columns:1fr 1fr 1fr">
+                  <div class="deal-form-group"><label>Beds</label><input type="number" id="deal-beds" placeholder="3" /></div>
+                  <div class="deal-form-group"><label>Baths</label><input type="number" id="deal-baths" placeholder="2" /></div>
+                  <div class="deal-form-group"><label>Source</label>
+                    <select id="deal-source">
+                      <option value="mls">MLS</option><option value="off-market">Off-Market</option><option value="wholesaler">Wholesaler</option><option value="auction">Auction</option><option value="driving">Driving for Dollars</option><option value="other">Other</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="deal-form-group" style="margin-bottom:0.75rem">
+                  <label>Listing URL (optional)</label>
+                  <input type="text" id="deal-listing-url" placeholder="https://..." />
+                </div>
+                <div class="deal-form-group" style="margin-bottom:1rem">
+                  <label>Notes</label>
+                  <textarea id="deal-notes" rows="3" placeholder="Motivated seller, estate sale, off-market..." style="resize:vertical"></textarea>
+                </div>
+                <button class="btn btn-primary" id="btn-analyze-deal" style="width:100%">Analyze Deal with AI</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Deal Detail / Results -->
+          <div id="deal-detail-section" style="display:none">
+            <div style="margin-bottom:1rem;display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap">
+              <button class="btn btn-secondary btn-sm" id="btn-back-to-deals">&larr; Back to Deals</button>
+              <select class="filter-select" id="deal-detail-status" style="min-width:140px" title="Deal pipeline stage">
+                <option value="prospecting" title="Evaluating the deal — no money committed">Prospecting</option>
+                <option value="under-contract" title="Offer accepted, earnest money deposited">Under Contract</option>
+                <option value="closing" title="Financing approved, closing scheduled">Closing</option>
+                <option value="rehab" title="Property purchased, renovation in progress">Rehab</option>
+                <option value="exit" title="Rehab done — listing for sale or renting out">Exit</option>
+                <option value="complete" title="Deal fully closed — sold or stabilized rental">Complete</option>
+                <option value="dead" title="Deal fell through or passed on">Dead</option>
+              </select>
+              <button class="btn btn-secondary btn-sm" id="btn-clone-deal">Clone Deal</button>
+              <button class="btn btn-secondary btn-sm" id="btn-reanalyze">Re-analyze</button>
+              <button class="btn btn-secondary btn-sm" id="btn-delete-deal" style="color:#dc2626">Delete Deal</button>
+            </div>
+
+            <!-- Score + Header -->
+            <div class="card" style="margin-bottom:1rem">
+              <div class="card-body" style="padding:1.25rem;display:flex;align-items:center;gap:1rem">
+                <div class="deal-score-badge" id="deal-score-badge">--</div>
+                <div>
+                  <h3 id="deal-detail-address" style="margin:0">Property Address</h3>
+                  <div style="font-size:0.8rem;color:var(--text-muted,#9ca3af);margin-top:0.2rem" id="deal-detail-subtitle">Strategy | Type | Condition</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Executive Summary -->
+            <div class="card" style="margin-bottom:1rem">
+              <div class="card-header"><h3>Deal Summary</h3></div>
+              <div class="card-body" style="padding:1.25rem" id="deal-summary"></div>
+            </div>
+
+            <!-- 70% Rule -->
+            <div class="card" id="deal-70-rule-card" style="margin-bottom:1rem">
+              <div class="card-body" style="padding:1rem" id="deal-70-rule-body"></div>
+            </div>
+
+            <!-- Financial Metrics -->
+            <div class="stats-grid" id="deal-financials-grid" style="margin-bottom:1rem"></div>
+
+            <!-- Charts -->
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem;margin-bottom:1rem">
+              <div class="card">
+                <div class="card-header"><h3>Cost Breakdown</h3></div>
+                <div class="card-body" style="padding:1rem;display:flex;align-items:center;justify-content:center">
+                  <div style="height:220px;width:100%;position:relative"><canvas id="deal-chart-costs"></canvas></div>
+                </div>
+              </div>
+              <div class="card">
+                <div class="card-header"><h3>Deal Score</h3></div>
+                <div class="card-body" style="padding:1rem;display:flex;align-items:center;justify-content:center">
+                  <div style="height:220px;width:100%;position:relative"><canvas id="deal-chart-score"></canvas></div>
+                </div>
+              </div>
+              <div class="card">
+                <div class="card-header"><h3>ARV vs Costs</h3></div>
+                <div class="card-body" style="padding:1rem;display:flex;align-items:center;justify-content:center">
+                  <div style="height:220px;width:100%;position:relative"><canvas id="deal-chart-arv"></canvas></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Risk & Recommendations -->
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem">
+              <div class="card">
+                <div class="card-header"><h3>Risks</h3></div>
+                <div class="card-body" style="padding:1rem" id="deal-risks"></div>
+              </div>
+              <div class="card">
+                <div class="card-header"><h3>Recommendations</h3></div>
+                <div class="card-body" style="padding:1rem" id="deal-recommendations"></div>
+              </div>
+            </div>
+
+            <!-- AI Estimates (when data was missing) -->
+            <div class="card" style="margin-bottom:1rem" id="deal-estimates-card">
+              <div class="card-header"><h3>AI Estimated Values</h3></div>
+              <div class="card-body" style="padding:1rem" id="deal-estimates"></div>
+            </div>
+
+            <!-- Comparable Properties -->
+            <div class="card" style="margin-bottom:1rem" id="deal-comps-card">
+              <div class="card-header"><h3>Comparable Properties</h3></div>
+              <div class="card-body" style="padding:1rem" id="deal-comps"></div>
+            </div>
+
+            <!-- Market Analysis -->
+            <div class="card" style="margin-bottom:1rem">
+              <div class="card-header"><h3>Market Analysis</h3></div>
+              <div class="card-body" style="padding:1rem" id="deal-market-analysis"></div>
+            </div>
+
+            <!-- Map & Floor Plan -->
+            <div class="card" style="margin-bottom:1rem">
+              <div class="card-header">
+                <h3>Property Map & Floor Plan</h3>
+                <button class="btn btn-primary btn-sm" id="btn-generate-floorplan">Generate Floor Plan</button>
+              </div>
+              <div class="card-body" style="padding:0">
+                <div style="display:grid;grid-template-columns:1fr 1fr;min-height:450px">
+                  <!-- Map -->
+                  <div style="border-right:1px solid var(--border,#e5e7eb);position:relative">
+                    <div style="padding:0.5rem 0.75rem;font-size:0.75rem;font-weight:600;color:var(--text-muted);border-bottom:1px solid var(--border,#e5e7eb);background:var(--surface,#f9fafb)">LOCATION</div>
+                    <div id="deal-map" style="height:420px;width:100%"></div>
+                  </div>
+                  <!-- Floor Plan -->
+                  <div style="position:relative;overflow:hidden;display:flex;flex-direction:column">
+                    <div style="padding:0.4rem 0.75rem;font-size:0.75rem;font-weight:600;color:var(--text-muted);border-bottom:1px solid var(--border,#e5e7eb);background:var(--surface,#f9fafb);display:flex;justify-content:space-between;align-items:center">
+                      <span>FLOOR PLAN</span>
+                      <div style="display:flex;gap:0.25rem;align-items:center" id="floorplan-controls">
+                        <button class="btn btn-secondary btn-sm" id="fp-zoom-in" style="padding:0.1rem 0.4rem;font-size:0.7rem" title="Zoom in">+</button>
+                        <button class="btn btn-secondary btn-sm" id="fp-zoom-out" style="padding:0.1rem 0.4rem;font-size:0.7rem" title="Zoom out">−</button>
+                        <select class="filter-select" id="fp-floor-select" style="font-size:0.7rem;padding:0.15rem 0.3rem;min-width:auto;display:none">
+                          <option value="1">Floor 1</option>
+                          <option value="2">Floor 2</option>
+                        </select>
+                        <span style="width:1px;height:14px;background:var(--border,#d1d5db);margin:0 0.15rem"></span>
+                        <button class="btn btn-secondary btn-sm" id="fp-toggle-edit" style="padding:0.1rem 0.4rem;font-size:0.65rem" title="Toggle edit mode">Edit</button>
+                        <button class="btn btn-secondary btn-sm" id="fp-add-room" style="padding:0.1rem 0.4rem;font-size:0.65rem;display:none" title="Add room">+ Room</button>
+                        <button class="btn btn-secondary btn-sm" id="fp-delete-room" style="padding:0.1rem 0.4rem;font-size:0.65rem;display:none;color:#dc2626" title="Delete selected">Del</button>
+                        <button class="btn btn-secondary btn-sm" id="fp-save-plan" style="padding:0.1rem 0.4rem;font-size:0.65rem;display:none;color:#059669" title="Save changes">Save</button>
+                      </div>
+                    </div>
+                    <!-- Edit toolbar (hidden until edit mode) -->
+                    <div id="fp-edit-toolbar" style="display:none;padding:0.35rem 0.75rem;background:#eff6ff;border-bottom:1px solid #bfdbfe;font-size:0.7rem;display:none;gap:0.5rem;align-items:center;flex-wrap:wrap">
+                      <span style="font-weight:600;color:#1e40af">EDITING</span>
+                      <span style="color:#3b82f6">Drag rooms to move. Drag edges to resize. Double-click to rename.</span>
+                      <span style="margin-left:auto;color:#6b7280" id="fp-edit-status">Unsaved changes</span>
+                    </div>
+                    <!-- Add room panel -->
+                    <div id="fp-add-panel" style="display:none;padding:0.5rem 0.75rem;background:#f0fdf4;border-bottom:1px solid #bbf7d0;font-size:0.75rem">
+                      <div style="display:flex;gap:0.4rem;align-items:end;flex-wrap:wrap">
+                        <div><label style="font-size:0.65rem;font-weight:600;display:block;margin-bottom:0.15rem">Name</label><input type="text" id="fp-new-name" placeholder="Living Room" style="width:110px;padding:0.2rem 0.35rem;font-size:0.75rem;border:1px solid #d1d5db;border-radius:4px" /></div>
+                        <div><label style="font-size:0.65rem;font-weight:600;display:block;margin-bottom:0.15rem">Type</label>
+                          <select id="fp-new-type" style="padding:0.2rem 0.25rem;font-size:0.75rem;border:1px solid #d1d5db;border-radius:4px">
+                            <option value="living">Living</option><option value="bedroom">Bedroom</option><option value="bathroom">Bathroom</option>
+                            <option value="kitchen">Kitchen</option><option value="dining">Dining</option><option value="garage">Garage</option>
+                            <option value="laundry">Laundry</option><option value="closet">Closet</option><option value="hallway">Hallway</option>
+                            <option value="foyer">Foyer</option><option value="office">Office</option><option value="pantry">Pantry</option><option value="porch">Porch</option>
+                          </select>
+                        </div>
+                        <div><label style="font-size:0.65rem;font-weight:600;display:block;margin-bottom:0.15rem">W (ft)</label><input type="number" id="fp-new-w" value="12" style="width:50px;padding:0.2rem 0.35rem;font-size:0.75rem;border:1px solid #d1d5db;border-radius:4px" /></div>
+                        <div><label style="font-size:0.65rem;font-weight:600;display:block;margin-bottom:0.15rem">H (ft)</label><input type="number" id="fp-new-h" value="12" style="width:50px;padding:0.2rem 0.35rem;font-size:0.75rem;border:1px solid #d1d5db;border-radius:4px" /></div>
+                        <button class="btn btn-primary btn-sm" id="fp-add-confirm" style="padding:0.2rem 0.5rem;font-size:0.7rem">Add</button>
+                        <button class="btn btn-secondary btn-sm" id="fp-add-cancel" style="padding:0.2rem 0.5rem;font-size:0.7rem">Cancel</button>
+                      </div>
+                    </div>
+                    <div id="floorplan-container" style="flex:1;min-height:380px;width:100%;display:flex;align-items:center;justify-content:center;overflow:auto;background:#fafbfc;position:relative">
+                      <div id="floorplan-empty" style="text-align:center;color:var(--text-muted);font-size:0.85rem;padding:2rem">
+                        <div style="font-size:2rem;margin-bottom:0.5rem">🏠</div>
+                        <p>Click <strong>Generate Floor Plan</strong> to create an AI-estimated layout based on this property's beds, baths, and square footage.</p>
+                      </div>
+                      <svg id="floorplan-svg" style="display:none"></svg>
+                    </div>
+                    <div id="floorplan-tooltip" style="display:none;position:absolute;background:rgba(0,0,0,0.85);color:#fff;padding:0.4rem 0.6rem;border-radius:6px;font-size:0.75rem;pointer-events:none;z-index:10;white-space:nowrap"></div>
+                    <div id="floorplan-loading" style="display:none;position:absolute;inset:0;background:rgba(255,255,255,0.9);align-items:center;justify-content:center;flex-direction:column;gap:0.5rem;z-index:5">
+                      <div class="loading-spinner" style="width:30px;height:30px;border-width:3px"></div>
+                      <span style="font-size:0.8rem;color:var(--text-muted)">Generating floor plan...</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Key Dates -->
+            <div class="card" style="margin-bottom:1rem">
+              <div class="card-header"><h3>Key Dates</h3></div>
+              <div class="card-body" style="padding:1rem">
+                <div class="deal-form-row" style="grid-template-columns:1fr 1fr 1fr">
+                  <div class="deal-form-group"><label>Offer Date</label><input type="date" id="deal-date-offer" class="deal-date-input" data-field="offerDate" /></div>
+                  <div class="deal-form-group"><label>Contract Date</label><input type="date" id="deal-date-contract" class="deal-date-input" data-field="contractDate" /></div>
+                  <div class="deal-form-group"><label>Inspection Date</label><input type="date" id="deal-date-inspection" class="deal-date-input" data-field="inspectionDate" /></div>
+                </div>
+                <div class="deal-form-row" style="grid-template-columns:1fr 1fr 1fr">
+                  <div class="deal-form-group"><label>Closing Date</label><input type="date" id="deal-date-closing" class="deal-date-input" data-field="closingDate" /></div>
+                  <div class="deal-form-group"><label>Rehab Start</label><input type="date" id="deal-date-rehab-start" class="deal-date-input" data-field="rehabStart" /></div>
+                  <div class="deal-form-group"><label>Rehab End</label><input type="date" id="deal-date-rehab-end" class="deal-date-input" data-field="rehabEnd" /></div>
+                </div>
+                <div class="deal-form-row" style="grid-template-columns:1fr 1fr 1fr">
+                  <div class="deal-form-group"><label>Refinance Date</label><input type="date" id="deal-date-refinance" class="deal-date-input" data-field="refinanceDate" /></div>
+                  <div class="deal-form-group"><label>Lease Start</label><input type="date" id="deal-date-lease-start" class="deal-date-input" data-field="leaseStart" /></div>
+                  <div class="deal-form-group"><label>Lease End</label><input type="date" id="deal-date-lease-end" class="deal-date-input" data-field="leaseEnd" /></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Financial Tracker -->
+            <div class="card" style="margin-bottom:1rem">
+              <div class="card-header"><h3>Financial Tracker</h3></div>
+              <div class="card-body" style="padding:1rem">
+                <div class="stats-grid" id="deal-actuals-grid" style="margin-bottom:1rem"></div>
+                <div style="margin-bottom:1rem">
+                  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem">
+                    <strong style="font-size:0.85rem">Rehab Line Items</strong>
+                    <button class="btn btn-secondary btn-sm" id="btn-add-rehab-item">+ Add Item</button>
+                  </div>
+                  <div id="deal-rehab-form" style="display:none;margin-bottom:0.75rem">
+                    <div class="deal-form-row" style="grid-template-columns:2fr 1fr 1fr auto">
+                      <div class="deal-form-group"><label>Description</label><input type="text" id="rehab-item-desc" placeholder="Kitchen cabinets" /></div>
+                      <div class="deal-form-group"><label>Amount ($)</label><input type="number" id="rehab-item-amount" placeholder="5000" /></div>
+                      <div class="deal-form-group"><label>Date</label><input type="date" id="rehab-item-date" /></div>
+                      <div class="deal-form-group"><label>&nbsp;</label><button class="btn btn-primary btn-sm" id="btn-save-rehab-item">Save</button></div>
+                    </div>
+                  </div>
+                  <table class="data-table"><thead><tr><th>Description</th><th>Amount</th><th>Date</th><th></th></tr></thead><tbody id="deal-rehab-tbody"></tbody></table>
+                  <div style="text-align:right;font-weight:700;font-size:0.9rem;padding:0.5rem 0" id="deal-rehab-total"></div>
+                </div>
+                <strong style="font-size:0.85rem;display:block;margin-bottom:0.5rem">Monthly Expenses</strong>
+                <div class="deal-form-row" style="grid-template-columns:1fr 1fr 1fr">
+                  <div class="deal-form-group"><label>Insurance ($)</label><input type="number" id="deal-exp-insurance" class="deal-expense-input" data-field="insurance" placeholder="150" /></div>
+                  <div class="deal-form-group"><label>Taxes ($)</label><input type="number" id="deal-exp-taxes" class="deal-expense-input" data-field="taxes" placeholder="280" /></div>
+                  <div class="deal-form-group"><label>HOA ($)</label><input type="number" id="deal-exp-hoa" class="deal-expense-input" data-field="hoa" placeholder="0" /></div>
+                </div>
+                <div class="deal-form-row" style="grid-template-columns:1fr 1fr 1fr">
+                  <div class="deal-form-group"><label>Utilities ($)</label><input type="number" id="deal-exp-utilities" class="deal-expense-input" data-field="utilities" placeholder="0" /></div>
+                  <div class="deal-form-group"><label>Prop Mgmt ($)</label><input type="number" id="deal-exp-management" class="deal-expense-input" data-field="propertyManagement" placeholder="0" /></div>
+                  <div class="deal-form-group"><label>Other ($)</label><input type="number" id="deal-exp-other" class="deal-expense-input" data-field="other" placeholder="0" /></div>
+                </div>
+                <strong style="font-size:0.85rem;display:block;margin:1rem 0 0.5rem">Actual Numbers</strong>
+                <div class="deal-form-row" style="grid-template-columns:1fr 1fr 1fr">
+                  <div class="deal-form-group"><label>Actual Purchase ($)</label><input type="number" id="deal-actual-purchase" class="deal-actual-input" data-field="actualPurchasePrice" /></div>
+                  <div class="deal-form-group"><label>Actual Closing ($)</label><input type="number" id="deal-actual-closing" class="deal-actual-input" data-field="actualClosingCosts" /></div>
+                  <div class="deal-form-group"><label>Actual ARV ($)</label><input type="number" id="deal-actual-arv" class="deal-actual-input" data-field="actualArv" /></div>
+                </div>
+
+                <strong style="font-size:0.85rem;display:block;margin:1rem 0 0.5rem">Financing / Loan Terms</strong>
+                <div class="deal-form-row" style="grid-template-columns:1fr 1fr 1fr 1fr">
+                  <div class="deal-form-group"><label>Down Payment ($)</label><input type="number" id="deal-fin-downpayment" class="deal-financing-input" data-field="downPayment" placeholder="25000" /></div>
+                  <div class="deal-form-group"><label>Interest Rate (%)</label><input type="number" step="0.1" id="deal-fin-rate" class="deal-financing-input" data-field="interestRate" placeholder="10.5" /></div>
+                  <div class="deal-form-group"><label>Loan Term (months)</label><input type="number" id="deal-fin-term" class="deal-financing-input" data-field="loanTermMonths" placeholder="12" /></div>
+                  <div class="deal-form-group"><label>Earnest Money ($)</label><input type="number" id="deal-fin-earnest" class="deal-financing-input" data-field="earnestMoney" placeholder="1000" /></div>
+                </div>
+                <div class="deal-form-row" style="grid-template-columns:1fr 1fr 1fr 1fr">
+                  <div class="deal-form-group"><label>Loan Amount ($)</label><input type="number" id="deal-fin-loanamt" class="deal-financing-input" data-field="loanAmount" placeholder="150000" /></div>
+                  <div class="deal-form-group"><label>Origination Pts (%)</label><input type="number" step="0.1" id="deal-fin-points" class="deal-financing-input" data-field="originationPoints" placeholder="2" /></div>
+                  <div class="deal-form-group"><label>Closing Cost %</label><input type="number" step="0.1" id="deal-fin-closingpct" class="deal-financing-input" data-field="closingCostPct" placeholder="3" /></div>
+                  <div class="deal-form-group"><label>Monthly Payment ($)</label><input type="number" id="deal-fin-payment" class="deal-financing-input" data-field="monthlyPayment" placeholder="0" readonly style="background:#f3f4f6" /></div>
+                </div>
+
+                <strong style="font-size:0.85rem;display:block;margin:1rem 0 0.5rem">Holding Costs (during rehab)</strong>
+                <div class="deal-form-row" style="grid-template-columns:1fr 1fr 1fr 1fr">
+                  <div class="deal-form-group"><label>Loan Payments ($)</label><input type="number" id="deal-hold-loan" class="deal-holding-input" data-field="holdingLoan" placeholder="0" readonly style="background:#f3f4f6" /></div>
+                  <div class="deal-form-group"><label>Insurance ($)</label><input type="number" id="deal-hold-insurance" class="deal-holding-input" data-field="holdingInsurance" placeholder="600" /></div>
+                  <div class="deal-form-group"><label>Taxes ($)</label><input type="number" id="deal-hold-taxes" class="deal-holding-input" data-field="holdingTaxes" placeholder="800" /></div>
+                  <div class="deal-form-group"><label>Utilities ($)</label><input type="number" id="deal-hold-utilities" class="deal-holding-input" data-field="holdingUtilities" placeholder="300" /></div>
+                </div>
+                <div class="deal-form-row" style="grid-template-columns:1fr 1fr 1fr 1fr">
+                  <div class="deal-form-group"><label>Est. Rehab Months</label><input type="number" id="deal-hold-months" class="deal-holding-input" data-field="holdingMonths" placeholder="6" /></div>
+                  <div class="deal-form-group"><label>Other Monthly ($)</label><input type="number" id="deal-hold-other" class="deal-holding-input" data-field="holdingOther" placeholder="0" /></div>
+                  <div class="deal-form-group"><label>Total Holding Cost</label><div id="deal-hold-total" style="font-weight:700;padding:0.4rem 0;font-size:0.9rem">$0</div></div>
+                  <div class="deal-form-group"></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Exit Strategy Tracker -->
+            <div class="card" style="margin-bottom:1rem">
+              <div class="card-header"><h3>Exit Tracker</h3></div>
+              <div class="card-body" style="padding:1rem">
+                <div id="exit-flip-section">
+                  <strong style="font-size:0.85rem;display:block;margin-bottom:0.5rem">Flip / Sale Exit</strong>
+                  <div class="deal-form-row" style="grid-template-columns:1fr 1fr 1fr 1fr">
+                    <div class="deal-form-group"><label>Listing Price ($)</label><input type="number" id="exit-listing-price" class="deal-exit-input" data-field="listingPrice" /></div>
+                    <div class="deal-form-group"><label>Sale Price ($)</label><input type="number" id="exit-sale-price" class="deal-exit-input" data-field="salePrice" /></div>
+                    <div class="deal-form-group"><label>Days on Market</label><input type="number" id="exit-dom" class="deal-exit-input" data-field="daysOnMarket" /></div>
+                    <div class="deal-form-group"><label>Offers Received</label><input type="number" id="exit-offers" class="deal-exit-input" data-field="offersReceived" /></div>
+                  </div>
+                  <div class="deal-form-row" style="grid-template-columns:1fr 1fr 1fr 1fr">
+                    <div class="deal-form-group"><label>Agent Commission %</label><input type="number" step="0.1" id="exit-commission" class="deal-exit-input" data-field="agentCommission" placeholder="5" /></div>
+                    <div class="deal-form-group"><label>Seller Closing ($)</label><input type="number" id="exit-seller-closing" class="deal-exit-input" data-field="sellerClosingCosts" /></div>
+                    <div class="deal-form-group"><label>Net Proceeds</label><div id="exit-net-proceeds" style="font-weight:700;padding:0.4rem 0;font-size:0.9rem;color:#059669">$0</div></div>
+                    <div class="deal-form-group"><label>True Profit</label><div id="exit-true-profit" style="font-weight:700;padding:0.4rem 0;font-size:0.9rem">$0</div></div>
+                  </div>
+                </div>
+
+                <div id="exit-refi-section" style="margin-top:1rem;padding-top:1rem;border-top:1px solid var(--border,#e5e7eb)">
+                  <strong style="font-size:0.85rem;display:block;margin-bottom:0.5rem">BRRRR / Refinance Exit</strong>
+                  <div class="deal-form-row" style="grid-template-columns:1fr 1fr 1fr 1fr">
+                    <div class="deal-form-group"><label>Refi Appraisal ($)</label><input type="number" id="exit-refi-appraisal" class="deal-exit-input" data-field="refiAppraisal" /></div>
+                    <div class="deal-form-group"><label>New Loan Amount ($)</label><input type="number" id="exit-refi-loan" class="deal-exit-input" data-field="refiLoanAmount" /></div>
+                    <div class="deal-form-group"><label>New Rate (%)</label><input type="number" step="0.1" id="exit-refi-rate" class="deal-exit-input" data-field="refiRate" /></div>
+                    <div class="deal-form-group"><label>New Term (years)</label><input type="number" id="exit-refi-term" class="deal-exit-input" data-field="refiTerm" placeholder="30" /></div>
+                  </div>
+                  <div class="deal-form-row" style="grid-template-columns:1fr 1fr 1fr 1fr">
+                    <div class="deal-form-group"><label>Cash Out ($)</label><div id="exit-cash-out" style="font-weight:700;padding:0.4rem 0;font-size:0.9rem;color:#059669">$0</div></div>
+                    <div class="deal-form-group"><label>Cash Left In Deal</label><div id="exit-cash-left" style="font-weight:700;padding:0.4rem 0;font-size:0.9rem">$0</div></div>
+                    <div class="deal-form-group"><label>vs Original ARV</label><div id="exit-arv-delta" style="font-weight:700;padding:0.4rem 0;font-size:0.9rem">$0</div></div>
+                    <div class="deal-form-group"><label>New Monthly Pmt</label><div id="exit-refi-payment" style="font-weight:700;padding:0.4rem 0;font-size:0.9rem">$0</div></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Activity Log -->
+            <div class="card" style="margin-bottom:1rem">
+              <div class="card-header">
+                <h3>Activity Log</h3>
+                <button class="btn btn-primary btn-sm" id="btn-add-activity">+ Add Note</button>
+              </div>
+              <div class="card-body" style="padding:1rem">
+                <div id="deal-activity-form" style="display:none;margin-bottom:1rem;padding-bottom:1rem;border-bottom:1px solid var(--border,#e5e7eb)">
+                  <div class="deal-form-group" style="margin-bottom:0.5rem"><label>Category</label>
+                    <select id="activity-category">
+                      <option value="general">General</option><option value="financial">Financial</option><option value="contractor">Contractor</option><option value="lender">Lender</option><option value="tenant">Tenant</option><option value="legal">Legal</option>
+                    </select>
+                  </div>
+                  <div class="deal-form-group" style="margin-bottom:0.5rem"><label>Note</label>
+                    <textarea id="activity-text" rows="3" placeholder="What happened? Decision made, call summary, update..." style="resize:vertical"></textarea>
+                  </div>
+                  <button class="btn btn-primary btn-sm" id="btn-save-activity">Save Note</button>
+                </div>
+                <div id="deal-activity-list"></div>
+              </div>
+            </div>
+
+            <!-- Contacts -->
+            <div class="card" style="margin-bottom:1rem">
+              <div class="card-header">
+                <h3>Contacts</h3>
+                <button class="btn btn-primary btn-sm" id="btn-add-contact">+ Add Contact</button>
+              </div>
+              <div class="card-body" style="padding:1rem">
+                <div id="deal-contact-form" style="display:none;margin-bottom:1rem;padding-bottom:1rem;border-bottom:1px solid var(--border,#e5e7eb)">
+                  <div class="deal-form-row" style="grid-template-columns:1fr 1fr">
+                    <div class="deal-form-group"><label>Role</label>
+                      <select id="contact-role">
+                        <option value="lender">Lender</option><option value="contractor">Contractor</option><option value="inspector">Inspector</option><option value="appraiser">Appraiser</option><option value="title">Title Company</option><option value="insurance">Insurance Agent</option><option value="property-manager">Property Manager</option><option value="tenant">Tenant</option><option value="seller">Seller</option><option value="attorney">Attorney</option><option value="realtor">Realtor</option>
+                      </select>
+                    </div>
+                    <div class="deal-form-group"><label>Name</label><input type="text" id="contact-name" placeholder="Name" /></div>
+                  </div>
+                  <div class="deal-form-row" style="grid-template-columns:1fr 1fr 1fr">
+                    <div class="deal-form-group"><label>Phone</label><input type="tel" id="contact-phone" placeholder="(555) 123-4567" /></div>
+                    <div class="deal-form-group"><label>Email</label><input type="email" id="contact-email" placeholder="email@example.com" /></div>
+                    <div class="deal-form-group"><label>Company</label><input type="text" id="contact-company" placeholder="Company name" /></div>
+                  </div>
+                  <div class="deal-form-group" style="margin-bottom:0.5rem"><label>Notes</label>
+                    <textarea id="contact-notes" rows="2" placeholder="How you know them, specialties, etc." style="resize:vertical"></textarea>
+                  </div>
+                  <button class="btn btn-primary btn-sm" id="btn-save-contact">Save Contact</button>
+                </div>
+                <div id="deal-contacts-list"></div>
+              </div>
+            </div>
+
+            <!-- Documents -->
+            <div class="card" style="margin-bottom:1rem">
+              <div class="card-header">
+                <h3>Documents &amp; Files</h3>
+                <button class="btn btn-primary btn-sm" id="btn-add-document">+ Add Link</button>
+              </div>
+              <div class="card-body" style="padding:1rem">
+                <div id="deal-document-form" style="display:none;margin-bottom:1rem;padding-bottom:1rem;border-bottom:1px solid var(--border,#e5e7eb)">
+                  <div class="deal-form-row" style="grid-template-columns:2fr 1fr">
+                    <div class="deal-form-group"><label>Document Name</label><input type="text" id="doc-name" placeholder="Purchase Contract" /></div>
+                    <div class="deal-form-group"><label>Category</label>
+                      <select id="doc-category">
+                        <option value="contract">Contract</option><option value="insurance">Insurance</option><option value="appraisal">Appraisal</option><option value="inspection">Inspection</option><option value="photos">Photos</option><option value="title">Title</option><option value="loan-docs">Loan Docs</option><option value="permits">Permits</option><option value="receipts">Receipts</option><option value="other">Other</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div class="deal-form-group" style="margin-bottom:0.5rem"><label>URL / Link</label>
+                    <input type="url" id="doc-url" placeholder="https://drive.google.com/..." />
+                  </div>
+                  <button class="btn btn-primary btn-sm" id="btn-save-document">Save Document</button>
+                </div>
+                <table class="data-table"><thead><tr><th>Name</th><th>Category</th><th>Date</th><th></th></tr></thead><tbody id="deal-documents-tbody"></tbody></table>
+              </div>
+            </div>
+
+            <!-- Checklists -->
+            <div class="card">
+              <div class="card-header">
+                <h3>Deal Checklists</h3>
+                <span id="deal-checklist-progress" style="font-size:0.8rem;color:var(--text-muted,#9ca3af)"></span>
+              </div>
+              <div class="card-body" style="padding:1rem">
+                <div class="deal-phase-tabs" id="deal-phase-tabs">
+                  <button class="deal-phase-tab active" data-phase="phase1">1. Buy Box</button>
+                  <button class="deal-phase-tab" data-phase="phase2">2. Pre-Loan</button>
+                  <button class="deal-phase-tab" data-phase="phase3">3. Closing</button>
+                  <button class="deal-phase-tab" data-phase="phase4">4. Rehab</button>
+                  <button class="deal-phase-tab" data-phase="phase5">5. Exit</button>
+                </div>
+                <div id="deal-checklist-items"></div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- ==================== PROPERTY MANAGEMENT ==================== -->
+        <div class="view" id="view-property-mgmt">
+
+          <!-- Loading -->
+          <div id="pm-loading" style="display:none;align-items:center;justify-content:center;flex-direction:column;gap:0.75rem;padding:4rem 0">
+            <div class="loading-spinner" style="width:36px;height:36px;border-width:3px"></div>
+            <span style="font-size:0.9rem;color:var(--text-muted)">Loading properties...</span>
+          </div>
+
+          <!-- Property List -->
+          <div id="pm-list-section">
+            <div class="stats-grid" id="pm-stats" style="margin-bottom:1rem"></div>
+            <div class="card">
+              <div class="card-header">
+                <h3>My Properties</h3>
+                <div style="display:flex;gap:0.5rem;align-items:center">
+                  <select class="filter-select" id="pm-filter-status" style="min-width:120px">
+                    <option value="">All Statuses</option>
+                    <option value="closing">Closing</option>
+                    <option value="rehab">In Rehab</option>
+                    <option value="exit">Exit / Renting</option>
+                    <option value="complete">Complete</option>
+                  </select>
+                  <input type="text" class="filter-input" id="pm-filter-search" placeholder="Search address..." style="min-width:160px" />
+                  <button class="btn btn-primary btn-sm" id="pm-btn-add-property">+ Add Property</button>
+                </div>
+              </div>
+              <div class="card-body" style="padding:0">
+                <!-- Add Property Panel -->
+                <div id="pm-add-property-panel" style="display:none;padding:1rem;border-bottom:2px solid var(--accent,#1a3c6e);background:var(--surface,#f9fafb)">
+                  <div style="display:flex;gap:1rem;margin-bottom:0.75rem">
+                    <button class="btn btn-sm" id="pm-add-tab-import" style="font-weight:600;border-bottom:2px solid var(--accent,#1a3c6e)">Import from Deal Analyzer</button>
+                    <button class="btn btn-sm" id="pm-add-tab-new" style="font-weight:600;color:var(--text-muted)">Create New Property</button>
+                  </div>
+                  <!-- Import tab -->
+                  <div id="pm-add-import" style="">
+                    <p style="font-size:0.8rem;color:var(--text-muted);margin-bottom:0.5rem">Select a deal to import as a managed property:</p>
+                    <select id="pm-import-deal" style="width:100%;padding:0.4rem 0.5rem;font-size:0.85rem;border:1px solid var(--border,#d1d5db);border-radius:6px;margin-bottom:0.5rem">
+                      <option value="">-- Select a deal --</option>
+                    </select>
+                    <div id="pm-import-preview" style="display:none;padding:0.5rem 0.75rem;background:#fff;border:1px solid var(--border,#e5e7eb);border-radius:6px;margin-bottom:0.5rem;font-size:0.8rem"></div>
+                    <button class="btn btn-primary btn-sm" id="pm-import-confirm" disabled>Import to Properties</button>
+                  </div>
+                  <!-- New property tab -->
+                  <div id="pm-add-new" style="display:none">
+                    <div class="deal-form-row" style="grid-template-columns:2fr 1fr 1fr 1fr">
+                      <div class="deal-form-group"><label>Address *</label><input type="text" id="pm-new-address" placeholder="123 Main St" /></div>
+                      <div class="deal-form-group"><label>City</label><input type="text" id="pm-new-city" /></div>
+                      <div class="deal-form-group"><label>State</label><input type="text" id="pm-new-state" placeholder="TX" maxlength="2" /></div>
+                      <div class="deal-form-group"><label>Zip</label><input type="text" id="pm-new-zip" /></div>
+                    </div>
+                    <div class="deal-form-row" style="grid-template-columns:1fr 1fr 1fr 1fr 1fr 1fr">
+                      <div class="deal-form-group"><label>Beds</label><input type="number" id="pm-new-beds" /></div>
+                      <div class="deal-form-group"><label>Baths</label><input type="number" step="0.5" id="pm-new-baths" /></div>
+                      <div class="deal-form-group"><label>Sq Ft</label><input type="number" id="pm-new-sqft" /></div>
+                      <div class="deal-form-group"><label>Year</label><input type="number" id="pm-new-year" /></div>
+                      <div class="deal-form-group"><label>Type</label>
+                        <select id="pm-new-type"><option value="Single Family">SFH</option><option value="Duplex">Duplex</option><option value="Triplex">Triplex</option><option value="Fourplex">4-plex</option><option value="Multi-Family">Multi</option></select>
+                      </div>
+                      <div class="deal-form-group"><label>Strategy</label>
+                        <select id="pm-new-strategy"><option value="buy-hold">Hold</option><option value="brrrr">BRRRR</option><option value="fix-flip">Flip</option></select>
+                      </div>
+                    </div>
+                    <div class="deal-form-row" style="grid-template-columns:1fr 1fr 1fr 1fr">
+                      <div class="deal-form-group"><label>Purchase Price</label><input type="number" id="pm-new-purchase" /></div>
+                      <div class="deal-form-group"><label>Monthly Rent</label><input type="number" id="pm-new-rent" /></div>
+                      <div class="deal-form-group"><label>ARV</label><input type="number" id="pm-new-arv" /></div>
+                      <div class="deal-form-group"><label>Condition</label>
+                        <select id="pm-new-condition"><option value="Turnkey">Turnkey</option><option value="Light Rehab">Light</option><option value="Heavy Rehab">Heavy</option><option value="Gut Job">Gut</option></select>
+                      </div>
+                    </div>
+                    <button class="btn btn-primary btn-sm" id="pm-new-confirm" style="margin-top:0.25rem">Create Property</button>
+                  </div>
+                </div>
+                <table class="data-table">
+                  <thead>
+                    <tr><th>Property</th><th>Strategy</th><th>Status</th><th>Invested</th><th>Equity</th><th>Cash Flow</th><th>Items</th><th></th></tr>
+                  </thead>
+                  <tbody id="pm-table-body"></tbody>
+                </table>
+                <div id="pm-empty" style="display:none;text-align:center;padding:2rem;color:var(--text-muted)">
+                  <p>No properties yet. Click <strong>+ Add Property</strong> to import from Deal Analyzer or create one from scratch.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Property Detail -->
+          <div id="pm-detail-section" style="display:none">
+            <div style="margin-bottom:1rem;display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap">
+              <button class="btn btn-secondary btn-sm" id="pm-btn-back">&larr; Back to Properties</button>
+              <span id="pm-detail-badge" class="status-badge" style="margin-left:0.5rem"></span>
+            </div>
+
+            <!-- Header -->
+            <div class="card" style="margin-bottom:1rem">
+              <div class="card-body" style="padding:1.25rem;display:flex;align-items:center;gap:1rem">
+                <div class="deal-score-badge" id="pm-score-badge">--</div>
+                <div style="flex:1">
+                  <h3 id="pm-detail-address" style="margin:0">Property</h3>
+                  <div style="font-size:0.8rem;color:var(--text-muted);margin-top:0.2rem" id="pm-detail-subtitle"></div>
+                </div>
+                <button class="btn btn-secondary btn-sm" id="pm-btn-goto-deal" style="font-size:0.75rem">Open in Deal Analyzer</button>
+                <button class="btn btn-secondary btn-sm" id="pm-btn-delete-prop" style="font-size:0.75rem;color:#dc2626">Delete Property</button>
+              </div>
+            </div>
+
+            <!-- MAP + FLOOR PLAN — full width hero -->
+            <div class="card" style="margin-bottom:1rem">
+              <div class="card-body" style="padding:0">
+                <div style="display:grid;grid-template-columns:1fr 1fr;min-height:520px">
+                  <!-- Map -->
+                  <div style="border-right:1px solid var(--border,#e5e7eb);position:relative;display:flex;flex-direction:column">
+                    <div style="padding:0.4rem 0.75rem;font-size:0.7rem;font-weight:600;color:var(--text-muted);border-bottom:1px solid var(--border,#e5e7eb);background:var(--surface,#f9fafb)">LOCATION</div>
+                    <div id="pm-map" style="flex:1;min-height:480px"></div>
+                  </div>
+                  <!-- Floor Plan -->
+                  <div style="display:flex;flex-direction:column;position:relative">
+                    <div style="padding:0.4rem 0.75rem;font-size:0.7rem;font-weight:600;color:var(--text-muted);border-bottom:1px solid var(--border,#e5e7eb);background:var(--surface,#f9fafb);display:flex;justify-content:space-between;align-items:center">
+                      <span>FLOOR PLAN</span>
+                      <div style="display:flex;gap:0.25rem;align-items:center">
+                        <button class="btn btn-secondary btn-sm" id="pm-fp-zoom-in" style="padding:0.1rem 0.4rem;font-size:0.7rem">+</button>
+                        <button class="btn btn-secondary btn-sm" id="pm-fp-zoom-out" style="padding:0.1rem 0.4rem;font-size:0.7rem">-</button>
+                        <select class="filter-select" id="pm-fp-floor" style="font-size:0.7rem;padding:0.15rem 0.3rem;min-width:auto;display:none">
+                          <option value="1">Floor 1</option><option value="2">Floor 2</option>
+                        </select>
+                        <span style="width:1px;height:14px;background:var(--border,#d1d5db);margin:0 0.15rem"></span>
+                        <button class="btn btn-secondary btn-sm" id="pm-fp-edit" style="padding:0.1rem 0.4rem;font-size:0.65rem">Edit</button>
+                        <button class="btn btn-secondary btn-sm" id="pm-fp-add-room" style="padding:0.1rem 0.4rem;font-size:0.65rem;display:none">+ Room</button>
+                        <button class="btn btn-secondary btn-sm" id="pm-fp-del-room" style="padding:0.1rem 0.4rem;font-size:0.65rem;display:none;color:#dc2626">Del</button>
+                        <button class="btn btn-secondary btn-sm" id="pm-fp-save" style="padding:0.1rem 0.4rem;font-size:0.65rem;display:none;color:#059669">Save</button>
+                      </div>
+                    </div>
+                    <div id="pm-fp-edit-bar" style="display:none;padding:0.3rem 0.75rem;background:#eff6ff;border-bottom:1px solid #bfdbfe;font-size:0.7rem;gap:0.5rem;align-items:center">
+                      <span style="font-weight:600;color:#1e40af">EDITING</span>
+                      <span style="color:#3b82f6">Drag to move. Edges to resize. Double-click to rename.</span>
+                      <span style="margin-left:auto;color:#6b7280" id="pm-fp-dirty">Saved</span>
+                    </div>
+                    <div id="pm-fp-add-panel" style="display:none;padding:0.4rem 0.75rem;background:#f0fdf4;border-bottom:1px solid #bbf7d0;font-size:0.75rem">
+                      <div style="display:flex;gap:0.4rem;align-items:end;flex-wrap:wrap">
+                        <div><label style="font-size:0.65rem;font-weight:600;display:block;margin-bottom:0.15rem">Name</label><input type="text" id="pm-fp-new-name" placeholder="Living Room" style="width:100px;padding:0.2rem 0.35rem;font-size:0.75rem;border:1px solid #d1d5db;border-radius:4px" /></div>
+                        <div><label style="font-size:0.65rem;font-weight:600;display:block;margin-bottom:0.15rem">Type</label>
+                          <select id="pm-fp-new-type" style="padding:0.2rem 0.25rem;font-size:0.75rem;border:1px solid #d1d5db;border-radius:4px">
+                            <option value="living">Living</option><option value="bedroom">Bedroom</option><option value="bathroom">Bathroom</option>
+                            <option value="kitchen">Kitchen</option><option value="dining">Dining</option><option value="garage">Garage</option>
+                            <option value="laundry">Laundry</option><option value="closet">Closet</option><option value="hallway">Hallway</option>
+                            <option value="foyer">Foyer</option><option value="office">Office</option><option value="pantry">Pantry</option><option value="porch">Porch</option>
+                          </select>
+                        </div>
+                        <div><label style="font-size:0.65rem;font-weight:600;display:block;margin-bottom:0.15rem">W</label><input type="number" id="pm-fp-new-w" value="12" style="width:40px;padding:0.2rem 0.3rem;font-size:0.75rem;border:1px solid #d1d5db;border-radius:4px" /></div>
+                        <div><label style="font-size:0.65rem;font-weight:600;display:block;margin-bottom:0.15rem">H</label><input type="number" id="pm-fp-new-h" value="12" style="width:40px;padding:0.2rem 0.3rem;font-size:0.75rem;border:1px solid #d1d5db;border-radius:4px" /></div>
+                        <button class="btn btn-primary btn-sm" id="pm-fp-add-confirm" style="padding:0.2rem 0.4rem;font-size:0.7rem">Add</button>
+                        <button class="btn btn-secondary btn-sm" id="pm-fp-add-cancel" style="padding:0.2rem 0.4rem;font-size:0.7rem">Cancel</button>
+                      </div>
+                    </div>
+                    <div id="pm-floorplan-container" style="flex:1;min-height:460px;display:flex;align-items:center;justify-content:center;overflow:auto;background:#fafbfc;position:relative">
+                      <div id="pm-fp-empty" style="text-align:center;color:var(--text-muted);padding:2rem;font-size:0.85rem">
+                    <div style="font-size:2.5rem;margin-bottom:0.75rem">🏠</div>
+                    <p style="margin-bottom:1rem">No floor plan yet for this property.</p>
+                    <button class="btn btn-primary btn-sm" id="pm-btn-generate-fp">Generate Floor Plan with AI</button>
+                    <p style="font-size:0.75rem;margin-top:0.5rem;color:#94a3b8">Creates a layout based on beds, baths, and square footage</p>
+                  </div>
+                      <svg id="pm-fp-svg" style="display:none"></svg>
+                    </div>
+                    <div id="pm-fp-tooltip" style="display:none;position:absolute;background:rgba(0,0,0,0.85);color:#fff;padding:0.4rem 0.6rem;border-radius:6px;font-size:0.75rem;pointer-events:none;z-index:10;white-space:nowrap"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Property Details + Lot — compact row below the hero -->
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem">
+              <div class="card">
+                <div class="card-header"><h3>Property Details</h3></div>
+                <div class="card-body" style="padding:0.75rem">
+                  <div class="deal-form-row" style="grid-template-columns:1fr 1fr 1fr 1fr 1fr">
+                    <div class="deal-form-group"><label>Beds</label><input type="number" id="pm-prop-beds" class="pm-prop-input" data-field="beds" /></div>
+                    <div class="deal-form-group"><label>Baths</label><input type="number" step="0.5" id="pm-prop-baths" class="pm-prop-input" data-field="baths" /></div>
+                    <div class="deal-form-group"><label>Sq Ft</label><input type="number" id="pm-prop-sqft" class="pm-prop-input" data-field="sqft" /></div>
+                    <div class="deal-form-group"><label>Year</label><input type="number" id="pm-prop-year" class="pm-prop-input" data-field="yearBuilt" /></div>
+                    <div class="deal-form-group"><label>Rent</label><input type="number" id="pm-prop-rent" class="pm-prop-input" data-field="monthlyRent" placeholder="$/mo" /></div>
+                  </div>
+                  <div class="deal-form-row" style="grid-template-columns:1fr 1fr 1fr 1fr">
+                    <div class="deal-form-group"><label>Type</label>
+                      <select id="pm-prop-type" class="pm-prop-input" data-field="type" style="font-size:0.8rem">
+                        <option value="">--</option><option value="Single Family">SFH</option><option value="Duplex">Duplex</option>
+                        <option value="Triplex">Triplex</option><option value="Fourplex">4-plex</option><option value="Multi-Family">Multi</option><option value="Mixed-Use">Mixed</option>
+                      </select>
+                    </div>
+                    <div class="deal-form-group"><label>Condition</label>
+                      <select id="pm-prop-condition" class="pm-prop-input" data-field="condition" style="font-size:0.8rem">
+                        <option value="">--</option><option value="Turnkey">Turnkey</option><option value="Light Rehab">Light</option>
+                        <option value="Heavy Rehab">Heavy</option><option value="Gut Job">Gut</option>
+                      </select>
+                    </div>
+                    <div class="deal-form-group"><label>Strategy</label>
+                      <select id="pm-prop-strategy" class="pm-prop-input" data-field="strategy" style="font-size:0.8rem">
+                        <option value="">--</option><option value="fix-flip">Flip</option><option value="brrrr">BRRRR</option>
+                        <option value="buy-hold">Hold</option><option value="wholesale">Wholesale</option><option value="new-construction">New Build</option>
+                      </select>
+                    </div>
+                    <div class="deal-form-group"><label>Stories</label><input type="number" id="pm-prop-stories" class="pm-prop-input" data-field="stories" placeholder="1" /></div>
+                  </div>
+                </div>
+              </div>
+              <div class="card">
+                <div class="card-header"><h3>Lot &amp; Land</h3></div>
+                <div class="card-body" style="padding:0.75rem">
+                  <div class="deal-form-row" style="grid-template-columns:1fr 1fr 1fr">
+                    <div class="deal-form-group"><label>Acres</label><input type="number" step="0.01" id="pm-lot-acres" class="pm-lot-input" data-field="lotAcres" placeholder="0.25" /></div>
+                    <div class="deal-form-group"><label>Width (ft)</label><input type="number" id="pm-lot-width" class="pm-lot-input" data-field="lotWidth" placeholder="80" /></div>
+                    <div class="deal-form-group"><label>Depth (ft)</label><input type="number" id="pm-lot-depth" class="pm-lot-input" data-field="lotDepth" placeholder="120" /></div>
+                  </div>
+                  <div class="deal-form-row" style="grid-template-columns:1fr 1fr 1fr">
+                    <div class="deal-form-group"><label>Zoning</label><input type="text" id="pm-lot-zoning" class="pm-lot-input" data-field="zoning" placeholder="R-1" /></div>
+                    <div class="deal-form-group"><label>Parking</label><input type="text" id="pm-lot-parking" class="pm-lot-input" data-field="parking" placeholder="2-car garage" /></div>
+                    <div class="deal-form-group"><label>Features</label><input type="text" id="pm-lot-features" class="pm-lot-input" data-field="lotFeatures" placeholder="Fenced, corner" /></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Room Items — click a room on the floor plan to filter, or view all -->
+            <div class="card" style="margin-bottom:1rem">
+              <div class="card-header">
+                <h3>Property Items & Purchases</h3>
+                <div style="display:flex;gap:0.5rem;align-items:center">
+                  <select class="filter-select" id="pm-item-room-filter" style="min-width:100px;font-size:0.75rem">
+                    <option value="">All Rooms</option>
+                  </select>
+                  <select class="filter-select" id="pm-item-cat-filter" style="min-width:100px;font-size:0.75rem">
+                    <option value="">All Categories</option>
+                    <option value="appliance">Appliance</option>
+                    <option value="fixture">Fixture</option>
+                    <option value="furniture">Furniture</option>
+                    <option value="material">Material</option>
+                    <option value="repair">Repair</option>
+                    <option value="upgrade">Upgrade</option>
+                    <option value="maintenance">Maintenance</option>
+                    <option value="other">Other</option>
+                  </select>
+                  <button class="btn btn-secondary btn-sm" id="pm-btn-auto-populate" style="font-size:0.7rem">Auto-Populate</button>
+                  <button class="btn btn-primary btn-sm" id="pm-btn-add-item">+ Add Item</button>
+                </div>
+              </div>
+              <div class="card-body" style="padding:0">
+                <!-- Add item form -->
+                <div id="pm-add-item-form" style="display:none;padding:0.75rem;border-bottom:1px solid var(--border,#e5e7eb);background:var(--surface,#f9fafb)">
+                  <div class="deal-form-row" style="grid-template-columns:2fr 1fr 1fr 1fr 1fr auto">
+                    <div class="deal-form-group"><label>Item Name</label><input type="text" id="pm-item-name" placeholder="Samsung Refrigerator" /></div>
+                    <div class="deal-form-group"><label>Room</label><select id="pm-item-room" style="font-size:0.8rem"><option value="">-- Select --</option></select></div>
+                    <div class="deal-form-group"><label>Category</label>
+                      <select id="pm-item-category" style="font-size:0.8rem">
+                        <option value="appliance">Appliance</option><option value="fixture">Fixture</option><option value="furniture">Furniture</option>
+                        <option value="material">Material</option><option value="repair">Repair</option><option value="upgrade">Upgrade</option>
+                        <option value="maintenance">Maintenance</option><option value="other">Other</option>
+                      </select>
+                    </div>
+                    <div class="deal-form-group"><label>Cost ($)</label><input type="number" id="pm-item-cost" placeholder="899" /></div>
+                    <div class="deal-form-group"><label>Date</label><input type="date" id="pm-item-date" /></div>
+                    <div class="deal-form-group"><label>&nbsp;</label><button class="btn btn-primary btn-sm" id="pm-btn-save-item">Save</button></div>
+                  </div>
+                  <div class="deal-form-row" style="grid-template-columns:1fr 1fr">
+                    <div class="deal-form-group"><label>Brand / Model</label><input type="text" id="pm-item-brand" placeholder="Samsung RF28R7351SG" /></div>
+                    <div class="deal-form-group"><label>Notes / Warranty</label><input type="text" id="pm-item-notes" placeholder="5-year warranty, Home Depot" /></div>
+                  </div>
+                </div>
+                <!-- Items table -->
+                <table class="data-table">
+                  <thead><tr><th>Item</th><th>Room</th><th>Category</th><th>Cost</th><th>Date</th><th>Brand/Model</th><th></th></tr></thead>
+                  <tbody id="pm-items-tbody"></tbody>
+                </table>
+                <div style="display:flex;justify-content:space-between;padding:0.5rem 0.75rem;font-size:0.8rem;font-weight:600;border-top:1px solid var(--border,#e5e7eb)">
+                  <span id="pm-items-count">0 items</span>
+                  <span id="pm-items-total">$0 total</span>
+                </div>
+                <div id="pm-items-empty" style="display:none;text-align:center;padding:1.5rem;color:var(--text-muted);font-size:0.85rem">No items yet. Track appliances, fixtures, materials, and maintenance for this property.</div>
+              </div>
+            </div>
+
+            <!-- Maintenance Schedule -->
+            <div class="card" style="margin-bottom:1rem">
+              <div class="card-header">
+                <h3>Maintenance Log</h3>
+                <button class="btn btn-primary btn-sm" id="pm-btn-add-maint">+ Log Maintenance</button>
+              </div>
+              <div class="card-body" style="padding:0">
+                <div id="pm-maint-form" style="display:none;padding:0.75rem;border-bottom:1px solid var(--border,#e5e7eb);background:var(--surface,#f9fafb)">
+                  <div class="deal-form-row" style="grid-template-columns:2fr 1fr 1fr 1fr auto">
+                    <div class="deal-form-group"><label>Description</label><input type="text" id="pm-maint-desc" placeholder="HVAC filter replaced" /></div>
+                    <div class="deal-form-group"><label>Type</label>
+                      <select id="pm-maint-type" style="font-size:0.8rem">
+                        <option value="preventive">Preventive</option><option value="repair">Repair</option><option value="inspection">Inspection</option>
+                        <option value="emergency">Emergency</option><option value="seasonal">Seasonal</option><option value="tenant-request">Tenant Request</option>
+                      </select>
+                    </div>
+                    <div class="deal-form-group"><label>Cost ($)</label><input type="number" id="pm-maint-cost" placeholder="0" /></div>
+                    <div class="deal-form-group"><label>Date</label><input type="date" id="pm-maint-date" /></div>
+                    <div class="deal-form-group"><label>&nbsp;</label><button class="btn btn-primary btn-sm" id="pm-btn-save-maint">Save</button></div>
+                  </div>
+                </div>
+                <table class="data-table">
+                  <thead><tr><th>Description</th><th>Type</th><th>Cost</th><th>Date</th><th></th></tr></thead>
+                  <tbody id="pm-maint-tbody"></tbody>
+                </table>
+                <div id="pm-maint-empty" style="display:none;text-align:center;padding:1.5rem;color:var(--text-muted);font-size:0.85rem">No maintenance logged yet.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- Save indicator -->
+  <div id="save-indicator" style="display:none;position:fixed;bottom:1.5rem;right:1.5rem;background:#059669;color:#fff;padding:0.4rem 0.75rem;border-radius:6px;font-size:0.8rem;font-weight:500;z-index:9999;box-shadow:0 2px 8px rgba(0,0,0,0.15);transition:opacity 0.3s">Saved</div>
+
+  <!-- Auto-populate preview modal -->
+  <div id="pm-auto-preview-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9998;display:none;align-items:center;justify-content:center">
+    <div style="background:#fff;border-radius:10px;max-width:600px;width:90%;max-height:70vh;display:flex;flex-direction:column;box-shadow:0 8px 30px rgba(0,0,0,0.2)">
+      <div style="padding:1rem 1.25rem;border-bottom:1px solid #e5e7eb;display:flex;justify-content:space-between;align-items:center">
+        <h3 style="margin:0;font-size:1rem">Auto-Populate Items Preview</h3>
+        <button class="btn btn-secondary btn-sm" id="pm-auto-preview-close" style="padding:0.15rem 0.5rem">&times;</button>
+      </div>
+      <div style="padding:0.75rem 1.25rem;font-size:0.8rem;color:var(--text-muted);border-bottom:1px solid #f3f4f6">
+        <label style="display:flex;align-items:center;gap:0.4rem;cursor:pointer"><input type="checkbox" id="pm-auto-select-all" checked /> Select all</label>
+      </div>
+      <div id="pm-auto-preview-list" style="flex:1;overflow-y:auto;padding:0.5rem 1.25rem;font-size:0.8rem"></div>
+      <div style="padding:0.75rem 1.25rem;border-top:1px solid #e5e7eb;display:flex;justify-content:space-between;align-items:center">
+        <span id="pm-auto-preview-count" style="font-size:0.8rem;color:var(--text-muted)">0 items selected</span>
+        <div style="display:flex;gap:0.5rem">
+          <button class="btn btn-secondary btn-sm" id="pm-auto-preview-cancel">Cancel</button>
+          <button class="btn btn-primary btn-sm" id="pm-auto-preview-confirm">Add Selected Items</button>
+        </div>
       </div>
     </div>
   </div>
@@ -1013,6 +1908,6 @@ landlords"></textarea>
       appId: "1:86921312365:web:2209f28924cda05c0ba764",
     });
   </script>
-  <script src="admin.js"></script>
+  <script src="/admin/admin.js"></script>
 </body>
 </html>

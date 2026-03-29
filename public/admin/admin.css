@@ -356,6 +356,48 @@ body {
   font-weight: 700;
 }
 
+.profile-tabs {
+  display: flex;
+  gap: 0.25rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 3px;
+}
+.profile-tab {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.9rem;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.profile-tab:hover { background: var(--bg-main); color: var(--text-primary); }
+.profile-tab.active {
+  background: var(--accent);
+  color: #fff;
+  box-shadow: 0 1px 3px rgba(59,130,246,0.3);
+}
+.profile-tab-avatar {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+.profile-tab.active .profile-tab-avatar { background: rgba(255,255,255,0.25); }
+
 .topbar-actions {
   display: flex;
   align-items: center;
@@ -560,10 +602,6 @@ body {
   font-size: 0.75rem;
   font-weight: 800;
 }
-
-.score-high { background: var(--success-bg); color: var(--success); }
-.score-medium { background: var(--warning-bg); color: var(--warning); }
-.score-low { background: var(--danger-bg); color: var(--danger); }
 
 /* ===== LEAD DETAIL PANEL ===== */
 .detail-overlay {
@@ -1383,4 +1421,188 @@ body {
   .filters-inline {
     flex-direction: column;
   }
+}
+
+/* ===== DEAL ANALYZER ===== */
+
+.deal-score-badge {
+  width: 56px;
+  height: 56px;
+  border-radius: var(--radius-lg, 12px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+.deal-score-badge.score-good { background: #ecfdf5; color: #059669; }
+.deal-score-badge.score-mid { background: #fffbeb; color: #d97706; }
+.deal-score-badge.score-bad { background: #fef2f2; color: #dc2626; }
+
+.deal-score-sm {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.rule-verdict {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  padding: 0.75rem 0;
+}
+.rule-verdict.pass { color: #059669; background: #ecfdf5; border-radius: 8px; padding: 1rem; }
+.rule-verdict.fail { color: #dc2626; background: #fef2f2; border-radius: 8px; padding: 1rem; }
+.rule-verdict .rule-icon { font-size: 1.5rem; }
+.rule-numbers {
+  font-size: 0.8rem;
+  font-weight: 400;
+  color: var(--text-secondary, #6b7280);
+  margin-top: 0.25rem;
+}
+
+.badge-prospecting { background: #eff6ff; color: #2563eb; }
+.badge-under-contract { background: #fffbeb; color: #d97706; }
+.badge-closing { background: #f0f9ff; color: #0369a1; }
+.badge-rehab { background: #fdf4ff; color: #a855f7; }
+.badge-exit { background: #ecfdf5; color: #059669; }
+.badge-complete { background: #f0fdf4; color: #16a34a; }
+.badge-dead { background: #fef2f2; color: #dc2626; }
+
+.deal-phase-tabs {
+  display: flex;
+  gap: 0.25rem;
+  margin-bottom: 1rem;
+  border-bottom: 1px solid var(--border, #e5e7eb);
+  overflow-x: auto;
+}
+.deal-phase-tab {
+  padding: 0.5rem 1rem;
+  border: none;
+  background: none;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-muted, #9ca3af);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  white-space: nowrap;
+  font-family: inherit;
+  transition: all 0.15s;
+}
+.deal-phase-tab:hover { color: var(--text-primary, #111827); }
+.deal-phase-tab.active {
+  color: var(--accent, #1a3c6e);
+  border-bottom-color: var(--accent, #1a3c6e);
+}
+
+.deal-checklist-item {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.55rem 0;
+  border-bottom: 1px solid var(--border-light, #f3f4f6);
+  font-size: 0.875rem;
+}
+.deal-checklist-item:last-child { border-bottom: none; }
+.deal-checklist-item input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent, #1a3c6e);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.deal-checklist-item.checked label {
+  color: var(--text-muted, #9ca3af);
+  text-decoration: line-through;
+}
+
+.deal-list { list-style: none; padding: 0; margin: 0; }
+.deal-list li {
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--border-light, #f3f4f6);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+.deal-list li:last-child { border-bottom: none; }
+
+.deal-form-row {
+  display: grid;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+.deal-form-group { display: flex; flex-direction: column; }
+.deal-form-group label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-secondary, #6b7280);
+  margin-bottom: 0.25rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.deal-form-group input,
+.deal-form-group select,
+.deal-form-group textarea {
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-family: inherit;
+  background: var(--bg-primary, #fff);
+  color: var(--text-primary, #111827);
+}
+.deal-form-group input:focus,
+.deal-form-group select:focus,
+.deal-form-group textarea:focus {
+  outline: none;
+  border-color: var(--accent, #1a3c6e);
+}
+
+@media (max-width: 768px) {
+  .deal-form-row { grid-template-columns: 1fr !important; }
+  .deal-phase-tabs { gap: 0; }
+  .deal-phase-tab { padding: 0.4rem 0.6rem; font-size: 0.7rem; }
+}
+
+/* Activity & Contact badges */
+.activity-badge {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.activity-badge.cat-general { background: #eff6ff; color: #2563eb; }
+.activity-badge.cat-financial { background: #ecfdf5; color: #059669; }
+.activity-badge.cat-contractor { background: #fdf4ff; color: #a855f7; }
+.activity-badge.cat-lender { background: #fffbeb; color: #d97706; }
+.activity-badge.cat-tenant { background: #f0f9ff; color: #0369a1; }
+.activity-badge.cat-legal { background: #fef2f2; color: #dc2626; }
+
+.contact-role {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  background: #f3f4f6;
+  color: #6b7280;
+}
+.doc-cat {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  background: #eff6ff;
+  color: #2563eb;
 }

@@ -2,7 +2,31 @@
   "hosting": {
     "site": "umbrellaplace",
     "public": "public",
-    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"]
+    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+    "cleanUrls": true,
+    "redirects": [
+      { "source": "/bridge-loans", "destination": "/lending/bridge-loans", "type": 301 },
+      { "source": "/fix-and-flip", "destination": "/lending/fix-and-flip", "type": 301 },
+      { "source": "/new-construction", "destination": "/lending/new-construction", "type": 301 },
+      { "source": "/dscr-loans", "destination": "/lending/dscr-loans", "type": 301 },
+      { "source": "/calculator", "destination": "/lending/calculator", "type": 301 }
+    ],
+    "headers": [
+      {
+        "source": "**",
+        "headers": [
+          { "key": "X-Content-Type-Options", "value": "nosniff" },
+          { "key": "X-Frame-Options", "value": "SAMEORIGIN" },
+          { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" }
+        ]
+      },
+      {
+        "source": "**/*.@(js|css|svg|png|jpg|jpeg|webp|woff2)",
+        "headers": [
+          { "key": "Cache-Control", "value": "public, max-age=3600, must-revalidate" }
+        ]
+      }
+    ]
   },
   "functions": {
     "source": "functions",
